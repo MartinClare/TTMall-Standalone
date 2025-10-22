@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Video - TTMall</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            font-family: inherit;
+        }
+
+        input[type="text"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            background: #f8f9ff;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .file-input-label:hover {
+            background: #eef0ff;
+            border-color: #764ba2;
+        }
+
+        .file-input-label.has-file {
+            border-color: #4caf50;
+            background: #f1f8f4;
+        }
+
+        .file-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .file-text {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .file-name {
+            margin-top: 10px;
+            font-weight: 600;
+            color: #4caf50;
+            word-break: break-all;
+        }
+
+        .upload-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+        }
+
+        .upload-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .upload-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+            text-align: center;
+            width: 100%;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        .info-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #856404;
+        }
+
+        .info-box strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📹 Upload Video</h1>
+        <p class="subtitle">Share your video with TTMall community</p>
+
+        <div class="info-box">
+            <strong>📋 Upload Guidelines:</strong>
+            • Maximum file size: 100MB<br>
+            • Supported formats: MP4, WebM, MOV, AVI, etc.<br>
+            • Video will be available immediately after upload
+        </div>
+
+        <form id="uploadForm">
+            <div class="form-group">
+                <label for="title">Video Title *</label>
+                <input type="text" id="title" name="title" placeholder="Enter video title" required>
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" placeholder="Describe your video..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Video File *</label>
+                <div class="file-input-wrapper">
+                    <input type="file" id="videoFile" name="video" accept="video/*" required>
+                    <label for="videoFile" class="file-input-label" id="fileLabel">
+                        <div>
+                            <div class="file-icon">🎥</div>
+                            <div class="file-text">Click to select video file</div>
+                            <div class="file-name" id="fileName"></div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <button type="submit" class="upload-btn" id="uploadBtn">
+                Upload Video
+            </button>
+        </form>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">Uploading...</div>
+        </div>
+
+        <div class="message" id="message"></div>
+
+        <a href="/" class="back-link">← Back to Home</a>
+    </div>
+
+    <script>
+        const form = document.getElementById('uploadForm');
+        const videoFileInput = document.getElementById('videoFile');
+        const fileLabel = document.getElementById('fileLabel');
+        const fileName = document.getElementById('fileName');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const message = document.getElementById('message');
+
+        // Handle file selection
+        videoFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                fileName.textContent = `📁 ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`;
+                fileLabel.classList.add('has-file');
+            } else {
+                fileName.textContent = '';
+                fileLabel.classList.remove('has-file');
+            }
+        });
+
+        // Handle form submission
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const file = videoFileInput.files[0];
+            if (!file) {
+                showMessage('Please select a video file', 'error');
+                return;
+            }
+
+            // Validate file size
+            if (file.size > 100 * 1024 * 1024) {
+                showMessage('File size must be less than 100MB', 'error');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('video', file);
+            formData.append('title', document.getElementById('title').value);
+            formData.append('description', document.getElementById('description').value);
+
+            try {
+                uploadBtn.disabled = true;
+                progressContainer.style.display = 'block';
+                message.style.display = 'none';
+
+                const xhr = new XMLHttpRequest();
+
+                // Track upload progress
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percentComplete = (e.loaded / e.total) * 100;
+                        progressFill.style.width = percentComplete + '%';
+                        progressText.textContent = `Uploading... ${percentComplete.toFixed(0)}%`;
+                    }
+                });
+
+                xhr.addEventListener('load', () => {
+                    if (xhr.status === 200) {
+                        const response = JSON.parse(xhr.responseText);
+                        showMessage(`✅ ${response.message}! Video ID: ${response.video.id}`, 'success');
+                        form.reset();
+                        fileName.textContent = '';
+                        fileLabel.classList.remove('has-file');
+                        
+                        // Redirect to home after 2 seconds
+                        setTimeout(() => {
+                            window.location.href = '/';
+                        }, 2000);
+                    } else {
+                        const error = JSON.parse(xhr.responseText);
+                        showMessage(`❌ Upload failed: ${error.error}`, 'error');
+                    }
+                    uploadBtn.disabled = false;
+                    progressContainer.style.display = 'none';
+                    progressFill.style.width = '0%';
+                });
+
+                xhr.addEventListener('error', () => {
+                    showMessage('❌ Network error occurred', 'error');
+                    uploadBtn.disabled = false;
+                    progressContainer.style.display = 'none';
+                    progressFill.style.width = '0%';
+                });
+
+                xhr.open('POST', '/api/videos/upload');
+                xhr.send(formData);
+
+            } catch (error) {
+                console.error('Upload error:', error);
+                showMessage('❌ Upload failed: ' + error.message, 'error');
+                uploadBtn.disabled = false;
+                progressContainer.style.display = 'none';
+            }
+        });
+
+        function showMessage(text, type) {
+            message.textContent = text;
+            message.className = `message ${type}`;
+            message.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
+
+

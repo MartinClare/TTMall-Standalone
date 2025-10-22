@@ -1,0 +1,123 @@
+===========================================
+🚂 RAILWAY DEPLOYMENT - QUICK COMMANDS
+===========================================
+
+METHOD 1: Deploy via GitHub (Recommended)
+==========================================
+
+Step 1: Push to GitHub
+----------------------
+git init
+git add .
+git commit -m "Deploy to Railway"
+git remote add origin https://github.com/YOUR_USERNAME/TTMall-Standalone.git
+git branch -M main
+git push -u origin main
+
+Step 2: Deploy on Railway Website
+----------------------------------
+1. Visit: https://railway.app
+2. Click "Start a New Project"
+3. Choose "Deploy from GitHub repo"
+4. Select: TTMall-Standalone
+5. Wait for deployment (2-3 minutes)
+
+Step 3: Add Volume (IMPORTANT!)
+--------------------------------
+1. Click your service in Railway
+2. Go to: Settings → Volumes
+3. Click: + New Volume
+4. Mount path: /app/public/uploads
+5. Size: 1GB (or more)
+6. Click: Add
+
+Step 4: Get Your URL
+--------------------
+1. Go to: Settings → Domains
+2. Click: Generate Domain
+3. Copy your URL (e.g., https://ttmall-production.up.railway.app)
+4. Visit and test! 🎉
+
+
+METHOD 2: Deploy via Railway CLI
+=================================
+
+Step 1: Install Railway CLI
+----------------------------
+npm install -g @railway/cli
+
+Step 2: Login to Railway
+-------------------------
+railway login
+
+Step 3: Initialize & Deploy
+----------------------------
+railway init
+railway up
+
+Step 4: Open Dashboard to Add Volume
+-------------------------------------
+railway open
+
+Then follow Method 1, Step 3 above to add volume.
+
+Step 5: Get Deployment URL
+---------------------------
+railway domain
+
+
+AFTER DEPLOYMENT
+================
+
+Test Your App:
+--------------
+✓ Visit your Railway URL
+✓ Browse videos
+✓ Upload a test video
+✓ Test shopping cart
+✓ Check if video persists after refresh
+
+View Logs:
+----------
+railway logs
+
+Or check logs in Railway dashboard
+
+Auto-Deploy on Push:
+--------------------
+git add .
+git commit -m "Your changes"
+git push
+
+Railway automatically deploys! 🚀
+
+
+TROUBLESHOOTING
+===============
+
+App not starting?
+-----------------
+railway logs
+
+Videos not persisting?
+----------------------
+Make sure you added Volume in Step 3!
+
+502 Bad Gateway?
+----------------
+Check logs - app might have crashed
+
+
+SUPPORT
+=======
+
+📖 Full Guide: See RAILWAY_DEPLOYMENT.md
+✅ Checklist: See DEPLOY_CHECKLIST.md
+🌐 Railway Docs: https://docs.railway.app
+💬 Railway Discord: https://discord.gg/railway
+
+
+===========================================
+You're ready to deploy! Good luck! 🚀
+===========================================
+

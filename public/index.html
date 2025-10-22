@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTMall - Video Shopping</title>
+    <style>
+        :root {
+            --tiktok-red: #FE2C55;
+            --tiktok-blue: #00F2EA;
+            --tiktok-black: #000000;
+            --tiktok-white: #FFFFFF;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: var(--tiktok-black);
+            color: var(--tiktok-white);
+            overflow: hidden;
+        }
+
+        #app {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Videos Wrapper */
+        #videos {
+            height: 100vh;
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none; /* Firefox */
+        }
+
+        #videos::-webkit-scrollbar {
+            display: none; /* Chrome, Safari */
+        }
+
+        /* Video Container - Each is an independent full-screen unit */
+        .video-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            scroll-snap-align: start;
+            scroll-snap-stop: always;
+            background: #000;
+            overflow: hidden;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            background: #000;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* Scroll indicator removed for true TikTok style */
+
+        /* Top Bar */
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 15px 20px;
+            background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .app-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ff4458;
+        }
+
+        /* Video Info - TikTok Style */
+        .video-info {
+            position: absolute;
+            bottom: 80px;
+            left: 12px;
+            right: 80px;
+            z-index: 10;
+            color: #fff;
+        }
+
+        .video-creator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .creator-name {
+            font-size: 16px;
+            font-weight: 700;
+            text-shadow: 0 0 8px rgba(0,0,0,0.8);
+            letter-spacing: 0.2px;
+        }
+
+        .video-caption {
+            font-size: 15px;
+            font-weight: 400;
+            line-height: 1.5;
+            text-shadow: 0 0 8px rgba(0,0,0,0.8);
+            margin-bottom: 8px;
+            max-width: 90%;
+        }
+
+        .video-music {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            opacity: 0.9;
+            text-shadow: 0 0 8px rgba(0,0,0,0.8);
+        }
+
+        .music-icon {
+            font-size: 12px;
+        }
+
+        /* Action Buttons - TikTok Style */
+        .action-buttons {
+            position: absolute;
+            right: 8px;
+            bottom: 24%;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .action-btn {
+            background: transparent;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            position: relative;
+            padding: 0;
+        }
+
+        .action-btn:active {
+            transform: scale(0.85);
+        }
+
+        .action-btn-icon {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 4px;
+            position: relative;
+        }
+
+        .action-btn-icon svg {
+            width: 100%;
+            height: 100%;
+            fill: currentColor;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+        }
+
+        .action-btn-count {
+            font-size: 12px;
+            font-weight: 600;
+            color: #fff;
+            text-shadow: 0 0 8px rgba(0,0,0,0.8);
+            line-height: 1;
+        }
+
+        /* Like button - TikTok red when liked */
+        .action-btn.liked .action-btn-icon {
+            color: var(--tiktok-red);
+        }
+
+        /* Avatar button special styling */
+        .action-btn-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 2px solid var(--tiktok-white);
+            background: #1a1a1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--tiktok-white);
+            margin-bottom: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        .follow-icon {
+            position: absolute;
+            bottom: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 20px;
+            height: 20px;
+            background: var(--tiktok-red);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            border: 2px solid var(--tiktok-black);
+            color: var(--tiktok-white);
+        }
+
+        /* Navigation Arrows */
+        .nav-arrows {
+            position: fixed;
+            right: 50%;
+            transform: translateX(50%);
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .nav-arrow {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border: none;
+            color: #fff;
+            font-size: 30px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .nav-arrow:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        /* Products Modal */
+        .products-modal {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border-radius: 20px 20px 0 0;
+            max-height: 70vh;
+            overflow-y: auto;
+            padding: 20px;
+            z-index: 20;
+            transform: translateY(100%);
+            transition: transform 0.3s;
+            color: #000;
+        }
+
+        .products-modal.show {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .product-item {
+            display: flex;
+            gap: 15px;
+            padding: 15px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .product-image {
+            width: 100px;
+            height: 100px;
+            border-radius: 8px;
+            object-fit: cover;
+        }
+
+        .product-details {
+            flex: 1;
+        }
+
+        .product-name {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .product-desc {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .product-price {
+            color: #ff4458;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .add-cart-btn {
+            background: #ff4458;
+            color: #fff;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .add-cart-btn:hover {
+            background: #ff2a3e;
+        }
+
+        /* Cart Badge */
+        .cart-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #ff4458;
+            color: #fff;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Loading */
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+        }
+
+        /* Cart Page */
+        .cart-page, .orders-page {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #f5f5f5;
+            z-index: 30;
+            display: none;
+            overflow-y: auto;
+        }
+
+        .cart-page.show, .orders-page.show {
+            display: block;
+        }
+
+        .page-header {
+            background: #fff;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        .page-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #000;
+        }
+
+        .cart-content {
+            padding: 20px;
+        }
+
+        .empty-message {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .cart-item {
+            background: #fff;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            display: flex;
+            gap: 15px;
+        }
+
+        .checkout-btn {
+            background: #ff4458;
+            color: #fff;
+            border: none;
+            padding: 15px;
+            width: 100%;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="loading">加载中...</div>
+        
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <div class="app-title">TTMall</div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <a href="/admin.html" style="text-decoration: none;">
+                    <button class="action-btn" style="font-size: 20px;" title="Admin Panel">⚙️</button>
+                </a>
+                <a href="/upload.html" style="text-decoration: none;">
+                    <button class="action-btn" style="font-size: 20px;" title="Upload Video">📤</button>
+                </a>
+                <div style="position: relative;">
+                    <button class="action-btn" onclick="showCart()" style="font-size: 20px;">🛒</button>
+                    <div class="cart-badge" id="cartBadge" style="display: none;">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Video Containers -->
+        <div id="videos"></div>
+
+        <!-- Products Modal -->
+        <div class="products-modal" id="productsModal">
+            <div class="modal-header">
+                <h3>商品列表</h3>
+                <button class="close-btn" onclick="hideProducts()">×</button>
+            </div>
+            <div id="productsList"></div>
+        </div>
+
+        <!-- Cart Page -->
+        <div class="cart-page" id="cartPage">
+            <div class="page-header">
+                <button class="back-btn" onclick="hideCart()">←</button>
+                <div class="page-title">购物车</div>
+            </div>
+            <div class="cart-content" id="cartContent"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+
+
