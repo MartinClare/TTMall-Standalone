@@ -135,7 +135,7 @@ function getDefaultVideos() {
     id: '11',
     title: '🎬 Behind The Scenes',
     description: 'Here\'s how it\'s done! 📸 #bts #behindthescenes #content #creator',
-    videoUrl: 'http://vpn.axon.com.hk/Video1.mp4',
+    videoUrl: 'http://vpn.axon.com.hk/video1.mp4',
     thumbnailUrl: 'https://via.placeholder.com/400x600/FFD700/white?text=Video+11',
     viewCount: 15000,
     likeCount: 1300,
