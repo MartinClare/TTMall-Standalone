@@ -72,9 +72,9 @@ function getDefaultVideos() {
   return [
   {
     id: '1',
-    title: 'From the Window',
-    description: 'I saw a wonderful view ！',
-    videoUrl: 'http://vpn.axon.com.hk/Download01.mp4',
+    title: '✨ GRWM Morning Vibes',
+    description: 'Starting my day right 🌅 #morningroutine #aesthetic #grwm #dailyvlog',
+    videoUrl: 'http://vpn.axon.com.hk/Download00.mp4',
     thumbnailUrl: '',
     viewCount: 12500,
     likeCount: 890,
@@ -82,9 +82,9 @@ function getDefaultVideos() {
   },
   {
     id: '2',
-    title: '无线蓝牙耳机开箱',
-    description: '音质超棒，性价比之王！',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+    title: '🎧 Unboxing My New Earbuds!',
+    description: 'The sound quality is INSANE 😱 #unboxing #techreview #gadgets #musthave',
+    videoUrl: 'http://vpn.axon.com.hk/Download01.mp4',
     thumbnailUrl: 'https://via.placeholder.com/400x600/4ECDC4/white?text=Video+2',
     viewCount: 8900,
     likeCount: 650,
@@ -92,9 +92,9 @@ function getDefaultVideos() {
   },
   {
     id: '3',
-    title: '智能手表体验',
-    description: '功能强大，续航持久！',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    title: '⌚ My Smart Watch Changed Everything',
+    description: 'Game changer for fitness goals 💪 #smartwatch #fitness #tech #productreview',
+    videoUrl: 'http://vpn.axon.com.hk/Download02.mp4',
     thumbnailUrl: 'https://via.placeholder.com/400x600/95E1D3/white?text=Video+3',
     viewCount: 15600,
     likeCount: 1200,
@@ -102,9 +102,9 @@ function getDefaultVideos() {
   },
   {
     id: '4',
-    title: '时尚背包推荐',
-    description: '大容量，超耐用！',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+    title: '🎒 Perfect Backpack for Everything',
+    description: 'So many pockets! Travel ready ✈️ #backpack #travel #organization #essentials',
+    videoUrl: 'http://vpn.axon.com.hk/Download03.mp4',
     thumbnailUrl: 'https://via.placeholder.com/400x600/F38181/white?text=Video+4',
     viewCount: 7800,
     likeCount: 520,
@@ -112,12 +112,72 @@ function getDefaultVideos() {
   },
   {
     id: '5',
-    title: '护肤套装评测',
-    description: '效果惊人，皮肤水润！',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
+    title: '💆‍♀️ Skincare That Actually Works',
+    description: 'My skin has never been better! ✨ #skincare #beauty #glowup #selfcare',
+    videoUrl: 'http://vpn.axon.com.hk/Download04.mp4',
     thumbnailUrl: 'https://via.placeholder.com/400x600/AA96DA/white?text=Video+5',
     viewCount: 11200,
     likeCount: 980,
+    isLive: false
+  },
+  {
+    id: '6',
+    title: '🔥 This is a MUST HAVE',
+    description: 'Trust me on this one! 💯 #trending #viral #musthave #shopping',
+    videoUrl: 'http://vpn.axon.com.hk/Download05.mp4',
+    thumbnailUrl: 'https://via.placeholder.com/400x600/FFB6C1/white?text=Video+6',
+    viewCount: 9300,
+    likeCount: 720,
+    isLive: false
+  },
+  {
+    id: '7',
+    title: '💎 Found a Hidden Gem',
+    description: 'You need to see this! 😍 #hiddengem #discover #amazing #wow',
+    videoUrl: 'http://vpn.axon.com.hk/Download06.mp4',
+    thumbnailUrl: 'https://via.placeholder.com/400x600/87CEEB/white?text=Video+7',
+    viewCount: 10500,
+    likeCount: 850,
+    isLive: false
+  },
+  {
+    id: '8',
+    title: '🌟 Trending Right Now',
+    description: 'Everyone is getting this! 🛒 #trending #viral #popular #foryou',
+    videoUrl: 'http://vpn.axon.com.hk/Download07.mp4',
+    thumbnailUrl: 'https://via.placeholder.com/400x600/98FB98/white?text=Video+8',
+    viewCount: 8700,
+    likeCount: 690,
+    isLive: false
+  },
+  {
+    id: '9',
+    title: '👀 Wait Until You See This',
+    description: 'Mind = Blown 🤯 #mindblown #amazing #cool #satisfying',
+    videoUrl: 'http://vpn.axon.com.hk/Download08.mp4',
+    thumbnailUrl: 'https://via.placeholder.com/400x600/DDA0DD/white?text=Video+9',
+    viewCount: 12100,
+    likeCount: 940,
+    isLive: false
+  },
+  {
+    id: '10',
+    title: '💕 My Current Obsession',
+    description: 'Can\'t stop using this! 😊 #obsessed #favorite #love #recommendation',
+    videoUrl: 'http://vpn.axon.com.hk/Download09.mp4',
+    thumbnailUrl: 'https://via.placeholder.com/400x600/F0E68C/white?text=Video+10',
+    viewCount: 11800,
+    likeCount: 900,
+    isLive: false
+  },
+  {
+    id: '11',
+    title: '🎬 Behind The Scenes',
+    description: 'Here\'s how it\'s done! 📸 #bts #behindthescenes #content #creator',
+    videoUrl: 'http://vpn.axon.com.hk/Video1.mp4',
+    thumbnailUrl: 'https://via.placeholder.com/400x600/FFD700/white?text=Video+11',
+    viewCount: 15000,
+    likeCount: 1300,
     isLive: false
   }
   ];
