@@ -23,6 +23,10 @@
             background: var(--tiktok-black);
             color: var(--tiktok-white);
             overflow: hidden;
+            overscroll-behavior: none; /* Prevent pull-to-refresh and bounce */
+            position: fixed;
+            width: 100%;
+            height: 100%;
         }
 
         #app {
@@ -40,6 +44,8 @@
             scroll-behavior: smooth;
             -webkit-overflow-scrolling: touch;
             scrollbar-width: none; /* Firefox */
+            overscroll-behavior-y: contain; /* Prevent bounce on Android/iOS */
+            -webkit-overflow-scrolling: touch;
         }
 
         #videos::-webkit-scrollbar {

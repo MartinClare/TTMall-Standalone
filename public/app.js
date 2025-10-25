@@ -191,8 +191,22 @@ function setupScrollListener() {
     const videosContainer = document.getElementById('videos');
     let scrollTimeout;
     
-    videosContainer.addEventListener('scroll', () => {
+    videosContainer.addEventListener('scroll', (e) => {
         clearTimeout(scrollTimeout);
+        
+        // Prevent bounce at boundaries
+        const scrollTop = videosContainer.scrollTop;
+        const scrollHeight = videosContainer.scrollHeight;
+        const clientHeight = videosContainer.clientHeight;
+        const maxScroll = scrollHeight - clientHeight;
+        
+        // If at the top or bottom, prevent further scrolling
+        if (scrollTop <= 0) {
+            videosContainer.scrollTop = 0;
+        } else if (scrollTop >= maxScroll) {
+            videosContainer.scrollTop = maxScroll;
+        }
+        
         scrollTimeout = setTimeout(() => {
             updateCurrentVideoIndex();
         }, 150);
@@ -210,11 +224,23 @@ function updateCurrentVideoIndex() {
     const windowHeight = window.innerHeight;
     
     // Calculate which video is currently in view
-    const newIndex = Math.round(scrollTop / windowHeight);
+    let newIndex = Math.round(scrollTop / windowHeight);
     
-    if (newIndex !== currentIndex && newIndex >= 0 && newIndex < videos.length) {
+    // Clamp the index to prevent issues at boundaries
+    newIndex = Math.max(0, Math.min(newIndex, videos.length - 1));
+    
+    if (newIndex !== currentIndex) {
         currentIndex = newIndex;
         playCurrentVideo();
+        
+        // Snap to the correct position if we're close to boundaries
+        const targetScroll = currentIndex * windowHeight;
+        if (Math.abs(scrollTop - targetScroll) > windowHeight * 0.1) {
+            videosContainer.scrollTo({
+                top: targetScroll,
+                behavior: 'smooth'
+            });
+        }
     }
 }
 
