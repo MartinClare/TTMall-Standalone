@@ -96,9 +96,14 @@
         }
 
         .app-title {
-            font-size: 24px;
-            font-weight: bold;
-            color: #ff4458;
+            display: flex;
+            align-items: center;
+        }
+        
+        .app-logo {
+            height: 40px;
+            width: auto;
+            object-fit: contain;
         }
 
         /* Video Info - TikTok Style */
@@ -472,7 +477,9 @@
         
         <!-- Top Bar -->
         <div class="top-bar">
-            <div class="app-title">TTMall</div>
+            <div class="app-title">
+                <img src="/logo.png" alt="TTMall" class="app-logo">
+            </div>
             <div style="display: flex; gap: 10px; align-items: center;">
                 <a href="/admin.html" style="text-decoration: none;">
                     <button class="action-btn" style="font-size: 20px;" title="Admin Panel">⚙️</button>
