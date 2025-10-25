@@ -14,7 +14,18 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+
+// Serve static files with proper caching headers
+app.use(express.static('public', {
+  setHeaders: (res, path) => {
+    // Disable caching for HTML and JS files to ensure updates are picked up
+    if (path.endsWith('.html') || path.endsWith('.js')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 
 
 // Default videos
