@@ -178,8 +178,36 @@ function getDefaultVideos() {
   ];
 }
 
-// Initialize videos with default videos
-let videos = getDefaultVideos();
+// Videos data file path
+const VIDEOS_DATA_FILE = join(__dirname, 'videos-data.json');
+
+// Load videos from file or use defaults
+function loadVideos() {
+  try {
+    if (fs.existsSync(VIDEOS_DATA_FILE)) {
+      const data = fs.readFileSync(VIDEOS_DATA_FILE, 'utf8');
+      const savedVideos = JSON.parse(data);
+      console.log(`📂 Loaded ${savedVideos.length} videos from file`);
+      return savedVideos;
+    }
+  } catch (error) {
+    console.error('Error loading videos from file:', error);
+  }
+  return getDefaultVideos();
+}
+
+// Save videos to file
+function saveVideos() {
+  try {
+    fs.writeFileSync(VIDEOS_DATA_FILE, JSON.stringify(videos, null, 2), 'utf8');
+    console.log(`💾 Saved ${videos.length} videos to file`);
+  } catch (error) {
+    console.error('Error saving videos to file:', error);
+  }
+}
+
+// Initialize videos with default videos or loaded data
+let videos = loadVideos();
 
 const products = [
   {
@@ -265,6 +293,7 @@ app.post('/api/videos/upload', upload.single('video'), (req, res) => {
     };
 
     videos.push(newVideo);
+    saveVideos(); // Persist to file
     res.json(newVideo);
   } catch (error) {
     console.error('Upload error:', error);
@@ -287,6 +316,7 @@ app.put('/api/videos/:id', (req, res) => {
   if (likeCount !== undefined) video.likeCount = parseInt(likeCount);
   if (isLive !== undefined) video.isLive = isLive === 'true' || isLive === true;
 
+  saveVideos(); // Persist to file
   res.json(video);
 });
 
@@ -309,6 +339,7 @@ app.delete('/api/videos/:id', (req, res) => {
   }
 
   videos.splice(videoIndex, 1);
+  saveVideos(); // Persist to file
   res.json({ success: true, message: 'Video deleted successfully' });
 });
 
