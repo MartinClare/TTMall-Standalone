@@ -1,13 +1,9 @@
 node_modules/
-videos-data.json
-public/uploads/videos/*
-!public/uploads/videos/.gitkeep
 *.log
 .DS_Store
 .env
 .env.local
 .env.*.local
-media/
 
 
 
