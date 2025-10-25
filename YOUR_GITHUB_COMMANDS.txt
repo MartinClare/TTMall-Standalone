@@ -1,0 +1,98 @@
+================================================
+🚀 YOUR PERSONALIZED GITHUB PUSH COMMANDS
+================================================
+GitHub Username: MartinClare
+Repository: TTMall-Standalone
+================================================
+
+STEP 1: Configure Git (First Time Only)
+========================================
+Copy and paste these commands one by one:
+
+git config --global user.name "MartinClare"
+git config --global user.email "your.email@example.com"
+
+⚠️ Replace "your.email@example.com" with your actual email!
+   (Use the same email as your GitHub account)
+
+Example:
+git config --global user.name "MartinClare"
+git config --global user.email "martinclare@gmail.com"
+
+
+STEP 2: Create GitHub Repository
+=================================
+1. Go to: https://github.com/new
+2. Repository name: TTMall-Standalone
+3. Description: TikTok-style video shopping app
+4. Public or Private: Your choice
+5. ❌ DO NOT check any boxes (no README, no .gitignore)
+6. Click "Create repository"
+
+
+STEP 3: Push Your Code
+=======================
+After creating the repository, run these commands:
+
+git commit -m "Initial commit - TTMall video shopping app ready for Railway deployment"
+
+git remote add origin https://github.com/MartinClare/TTMall-Standalone.git
+
+git branch -M main
+
+git push -u origin main
+
+
+STEP 4: Authentication
+=======================
+If GitHub asks for credentials:
+- Username: MartinClare
+- Password: Use a Personal Access Token (NOT your GitHub password)
+
+To get a token:
+1. Go to: https://github.com/settings/tokens
+2. Click "Generate new token (classic)"
+3. Name: TTMall-Deployment
+4. Check: repo (full control)
+5. Click "Generate token"
+6. COPY the token and use it as your password
+
+
+ALTERNATIVE: Use GitHub CLI (Easier)
+=====================================
+gh auth login
+
+Then follow the prompts!
+
+
+VERIFICATION
+============
+After pushing, verify:
+
+git remote -v
+
+Visit your repo:
+https://github.com/MartinClare/TTMall-Standalone
+
+
+FUTURE UPDATES
+==============
+After initial push, updates are simple:
+
+git add .
+git commit -m "Your update message"
+git push
+
+
+================================================
+✅ READY TO GO!
+================================================
+
+Your GitHub Repository URL:
+https://github.com/MartinClare/TTMall-Standalone.git
+
+After pushing to GitHub, you can deploy to Railway!
+See RAILWAY_DEPLOYMENT.md for deployment instructions.
+
+================================================
+

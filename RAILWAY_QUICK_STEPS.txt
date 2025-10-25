@@ -1,0 +1,99 @@
+╔════════════════════════════════════════════════════════════╗
+║          🚂 DEPLOY TO RAILWAY - QUICK STEPS               ║
+╚════════════════════════════════════════════════════════════╝
+
+Your GitHub Repo: https://github.com/MartinClare/TTMall-Standalone
+Status: ✅ Code pushed and ready!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STEP 1: Go to Railway
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌐 Open: https://railway.app
+
+
+STEP 2: Sign In with GitHub
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Click "Login" → "Login with GitHub"
+2. Authorize Railway
+3. You'll see your dashboard
+
+
+STEP 3: Deploy from GitHub
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Click "New Project"
+2. Choose "Deploy from GitHub repo"
+3. Select: TTMall-Standalone
+4. Wait 2-3 minutes for build ⏱️
+
+
+STEP 4: Add Volume (IMPORTANT!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Click your service
+2. Go to "Settings" tab
+3. Find "Volumes" section
+4. Click "+ New Volume"
+5. Mount path: /app/public/uploads
+6. Size: 1 GB
+7. Click "Add"
+
+⚠️ Without this, uploaded videos will disappear!
+
+
+STEP 5: Get Your URL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Go to "Settings" tab
+2. Find "Domains" section
+3. Click "Generate Domain"
+4. Copy your URL (looks like):
+   https://ttmall-standalone-production.up.railway.app
+5. VISIT YOUR LIVE APP! 🎉
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ THAT'S IT! Your app is LIVE!
+
+Test it:
+- Browse videos
+- Upload a video
+- Test shopping cart
+- Share the URL with friends!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔄 FUTURE UPDATES (Auto-Deploy):
+
+git add .
+git commit -m "Update message"
+git push
+
+Railway automatically redeploys! 🚀
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 Checklist:
+□ Visit railway.app
+□ Login with GitHub
+□ Deploy from repo (TTMall-Standalone)
+□ Wait for build
+□ Add volume (/app/public/uploads)
+□ Generate domain
+□ Test live app
+□ Share URL!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 Detailed Guide: See DEPLOY_NOW.md
+
+🆘 Help: https://docs.railway.app
+
+💰 Free Tier: $5/month credit (plenty for hobby projects)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎊 You're ready! Go to railway.app and start! 🚂✨
+
+╚════════════════════════════════════════════════════════════╝
+
+

@@ -72,10 +72,10 @@ function getDefaultVideos() {
   return [
   {
     id: '1',
-    title: '时尚运动鞋测评',
-    description: '超轻超舒适，跑步必备！',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-    thumbnailUrl: 'https://via.placeholder.com/400x600/FF6B6B/white?text=Video+1',
+    title: 'From the Window',
+    description: 'I saw a wonderful view ！',
+    videoUrl: 'http://vpn.axon.com.hk/Download01.mp4',
+    thumbnailUrl: '',
     viewCount: 12500,
     likeCount: 890,
     isLive: false

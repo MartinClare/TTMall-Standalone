@@ -7,6 +7,7 @@ public/uploads/videos/*
 .env
 .env.local
 .env.*.local
+media/
 
 
 
