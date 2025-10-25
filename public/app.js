@@ -46,6 +46,13 @@ function renderVideos() {
                 <div style="font-size:12px; margin-top:5px; opacity:0.8;">${video.videoUrl}</div>
             </div>
             
+            ${video.isLive ? `
+            <div class="live-indicator" style="position: absolute; bottom: 190px; left: 15px; background: rgba(255, 0, 0, 0.95); color: white; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; display: flex; align-items: center; gap: 6px; z-index: 11; box-shadow: 0 2px 12px rgba(255,0,0,0.5); pointer-events: none;">
+                <span style="width: 8px; height: 8px; background: white; border-radius: 50%; animation: pulse 1.5s ease-in-out infinite;"></span>
+                LIVE
+            </div>
+            ` : ''}
+            
             <!-- Video Info - TikTok Style -->
             <div class="video-info">
                 <div class="video-creator">

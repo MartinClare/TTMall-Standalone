@@ -73,7 +73,7 @@ function getDefaultVideos() {
     thumbnailUrl: '',
     viewCount: 12500,
     likeCount: 890,
-    isLive: false
+    isLive: true
   },
   {
     id: '2',
