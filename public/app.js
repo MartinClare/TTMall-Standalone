@@ -37,7 +37,14 @@ function renderVideos() {
                 loop 
                 muted
                 playsinline
+                crossorigin="anonymous"
+                onerror="handleVideoError(this, ${index})"
             ></video>
+            <div class="video-error" id="error${index}" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; color:#fff; background:rgba(0,0,0,0.8); padding:20px; border-radius:10px; z-index:5;">
+                <div style="font-size:40px; margin-bottom:10px;">⚠️</div>
+                <div>Video not available</div>
+                <div style="font-size:12px; margin-top:5px; opacity:0.8;">${video.videoUrl}</div>
+            </div>
             
             <!-- Video Info - TikTok Style -->
             <div class="video-info">
@@ -480,6 +487,16 @@ async function createOrder(name, phone, address) {
     } catch (error) {
         alert('订单创建失败，请重试');
     }
+}
+
+// Video error handler
+function handleVideoError(videoElement, index) {
+    console.error(`Video ${index} failed to load:`, videoElement.src);
+    const errorDiv = document.getElementById(`error${index}`);
+    if (errorDiv) {
+        errorDiv.style.display = 'block';
+    }
+    videoElement.style.display = 'none';
 }
 
 // Start the app
