@@ -522,6 +522,12 @@
                         <label>Like Count</label>
                         <input type="number" id="editLikeCount" min="0">
                     </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="editIsLive" style="width: auto; margin-right: 8px;">
+                            🔴 Live Video
+                        </label>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -607,6 +613,7 @@
                                     <span>👁️ ${formatNumber(video.viewCount)}</span>
                                     <span>❤️ ${formatNumber(video.likeCount)}</span>
                                 </div>
+                                ${video.isLive ? `<span class="badge badge-danger" style="background: #dc3545; color: white; margin-bottom: 10px;">🔴 LIVE</span>` : ''}
                                 ${video.uploadedAt ? `<span class="badge badge-success">Uploaded</span>` : ''}
                                 <div class="video-actions">
                                     <button class="btn btn-success btn-sm" onclick="editVideo('${video.id}')">Edit</button>
@@ -729,6 +736,7 @@
             document.getElementById('editVideoDescription').value = video.description || '';
             document.getElementById('editViewCount').value = video.viewCount || 0;
             document.getElementById('editLikeCount').value = video.likeCount || 0;
+            document.getElementById('editIsLive').checked = video.isLive || false;
 
             document.getElementById('editModal').classList.add('show');
         }
@@ -745,6 +753,7 @@
             const description = document.getElementById('editVideoDescription').value;
             const viewCount = parseInt(document.getElementById('editViewCount').value) || 0;
             const likeCount = parseInt(document.getElementById('editLikeCount').value) || 0;
+            const isLive = document.getElementById('editIsLive').checked;
 
             try {
                 const response = await fetch(`/api/videos/${videoId}`, {
@@ -756,7 +765,8 @@
                         title,
                         description,
                         viewCount,
-                        likeCount
+                        likeCount,
+                        isLive
                     })
                 });
 
