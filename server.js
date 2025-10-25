@@ -1,9 +1,7 @@
 import express from 'express';
 import cors from 'cors';
-import multer from 'multer';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -11,61 +9,13 @@ const __dirname = dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Data file path
-const DATA_FILE = join(__dirname, 'videos-data.json');
-
-// Configure multer for video uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'public/uploads/videos/');
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + '-' + file.originalname);
-  }
-});
-
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 100 * 1024 * 1024 // 100MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    // Accept video files only
-    if (file.mimetype.startsWith('video/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only video files are allowed!'), false);
-    }
-  }
-});
+// Upload functionality is disabled - using default videos only
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Load videos from file or use default data
-function loadVideos() {
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const data = fs.readFileSync(DATA_FILE, 'utf8');
-      return JSON.parse(data);
-    }
-  } catch (error) {
-    console.error('Error loading videos:', error);
-  }
-  return getDefaultVideos();
-}
-
-// Save videos to file
-function saveVideos() {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(videos, null, 2), 'utf8');
-  } catch (error) {
-    console.error('Error saving videos:', error);
-  }
-}
 
 // Default videos
 function getDefaultVideos() {
@@ -183,8 +133,8 @@ function getDefaultVideos() {
   ];
 }
 
-// Initialize videos from file
-let videos = loadVideos();
+// Initialize videos - always use default videos only
+const videos = getDefaultVideos();
 
 const products = [
   {
@@ -248,76 +198,28 @@ app.get('/api/videos', (req, res) => {
   res.json(videos);
 });
 
-// Upload video endpoint
-app.post('/api/videos/upload', upload.single('video'), (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No video file uploaded' });
-    }
-
-    const { title, description } = req.body;
-    
-    const newVideo = {
-      id: `video_${Date.now()}`,
-      title: title || 'Untitled Video',
-      description: description || 'No description',
-      videoUrl: `/uploads/videos/${req.file.filename}`,
-      thumbnailUrl: 'https://via.placeholder.com/400x600/6C63FF/white?text=Uploaded',
-      viewCount: 0,
-      likeCount: 0,
-      isLive: false,
-      uploadedAt: new Date().toISOString()
-    };
-
-    videos.push(newVideo);
-    saveVideos(); // Save to file
-
-    res.json({
-      success: true,
-      video: newVideo,
-      message: 'Video uploaded successfully'
-    });
-  } catch (error) {
-    console.error('Upload error:', error);
-    res.status(500).json({ error: 'Failed to upload video' });
-  }
-});
-
-// Update video endpoint
-app.put('/api/videos/:id', (req, res) => {
-  const video = videos.find(v => v.id === req.params.id);
-  
-  if (!video) {
-    return res.status(404).json({ error: 'Video not found' });
-  }
-
-  const { title, description, viewCount, likeCount } = req.body;
-  
-  if (title) video.title = title;
-  if (description !== undefined) video.description = description;
-  if (viewCount !== undefined) video.viewCount = parseInt(viewCount) || 0;
-  if (likeCount !== undefined) video.likeCount = parseInt(likeCount) || 0;
-
-  saveVideos(); // Save to file
-
-  res.json({
-    success: true,
-    video,
-    message: 'Video updated successfully'
+// Upload video endpoint - DISABLED
+app.post('/api/videos/upload', (req, res) => {
+  res.status(403).json({ 
+    error: 'Upload functionality is disabled',
+    message: 'Video uploads are not allowed. Please use the default videos.'
   });
 });
 
-// Delete video endpoint
+// Update video endpoint - DISABLED
+app.put('/api/videos/:id', (req, res) => {
+  res.status(403).json({ 
+    error: 'Update functionality is disabled',
+    message: 'Video updates are not allowed. Videos are read-only.'
+  });
+});
+
+// Delete video endpoint - DISABLED
 app.delete('/api/videos/:id', (req, res) => {
-  const index = videos.findIndex(v => v.id === req.params.id);
-  
-  if (index !== -1) {
-    videos.splice(index, 1);
-    saveVideos(); // Save to file
-    res.json({ success: true, message: 'Video deleted successfully' });
-  } else {
-    res.status(404).json({ error: 'Video not found' });
-  }
+  res.status(403).json({ 
+    error: 'Delete functionality is disabled',
+    message: 'Video deletion is not allowed. Videos are read-only.'
+  });
 });
 
 app.get('/api/videos/:id/products', (req, res) => {
@@ -419,7 +321,8 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
   console.log(`📱 Open http://localhost:${PORT} in your browser`);
-  console.log(`📹 Loaded ${videos.length} videos (${videos.filter(v => v.uploadedAt).length} uploaded)`);
+  console.log(`📹 Loaded ${videos.length} default videos`);
+  console.log(`🔒 Upload/Edit/Delete features are disabled`);
 });
 
 
