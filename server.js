@@ -1,7 +1,9 @@
 import express from 'express';
 import cors from 'cors';
+import multer from 'multer';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -16,7 +18,32 @@ const VIDEO_BASE_URL = USE_VPN_VIDEOS
   ? 'http://vpn.axon.com.hk' 
   : ''; // Empty string means serve from this server
 
-// Upload functionality is disabled - using default videos only
+// Configure multer for video uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = join(__dirname, 'public', 'uploads', 'videos');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + '-' + file.originalname);
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('video/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only video files are allowed!'), false);
+    }
+  }
+});
 
 // Middleware
 app.use(cors());
@@ -151,8 +178,8 @@ function getDefaultVideos() {
   ];
 }
 
-// Initialize videos - always use default videos only
-const videos = getDefaultVideos();
+// Initialize videos with default videos
+let videos = getDefaultVideos();
 
 const products = [
   {
@@ -216,28 +243,73 @@ app.get('/api/videos', (req, res) => {
   res.json(videos);
 });
 
-// Upload video endpoint - DISABLED
-app.post('/api/videos/upload', (req, res) => {
-  res.status(403).json({ 
-    error: 'Upload functionality is disabled',
-    message: 'Video uploads are not allowed. Please use the default videos.'
-  });
+// Upload video endpoint
+app.post('/api/videos/upload', upload.single('video'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No video file uploaded' });
+    }
+
+    const { title, description, viewCount, likeCount, isLive } = req.body;
+    const videoUrl = `/uploads/videos/${req.file.filename}`;
+    
+    const newVideo = {
+      id: Date.now().toString(),
+      title: title || 'Untitled Video',
+      description: description || '',
+      videoUrl,
+      thumbnailUrl: '',
+      viewCount: parseInt(viewCount) || 0,
+      likeCount: parseInt(likeCount) || 0,
+      isLive: isLive === 'true' || isLive === true || false
+    };
+
+    videos.push(newVideo);
+    res.json(newVideo);
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Failed to upload video' });
+  }
 });
 
-// Update video endpoint - DISABLED
+// Update video endpoint
 app.put('/api/videos/:id', (req, res) => {
-  res.status(403).json({ 
-    error: 'Update functionality is disabled',
-    message: 'Video updates are not allowed. Videos are read-only.'
-  });
+  const video = videos.find(v => v.id === req.params.id);
+  
+  if (!video) {
+    return res.status(404).json({ error: 'Video not found' });
+  }
+
+  const { title, description, viewCount, likeCount, isLive } = req.body;
+  if (title !== undefined) video.title = title;
+  if (description !== undefined) video.description = description;
+  if (viewCount !== undefined) video.viewCount = parseInt(viewCount);
+  if (likeCount !== undefined) video.likeCount = parseInt(likeCount);
+  if (isLive !== undefined) video.isLive = isLive === 'true' || isLive === true;
+
+  res.json(video);
 });
 
-// Delete video endpoint - DISABLED
+// Delete video endpoint
 app.delete('/api/videos/:id', (req, res) => {
-  res.status(403).json({ 
-    error: 'Delete functionality is disabled',
-    message: 'Video deletion is not allowed. Videos are read-only.'
-  });
+  const videoIndex = videos.findIndex(v => v.id === req.params.id);
+  
+  if (videoIndex === -1) {
+    return res.status(404).json({ error: 'Video not found' });
+  }
+
+  const video = videos[videoIndex];
+  
+  // Delete file if it's an uploaded video
+  if (video.videoUrl.startsWith('/uploads/')) {
+    const filePath = join(__dirname, 'public', video.videoUrl);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+  }
+
+  videos.splice(videoIndex, 1);
+  res.json({ success: true, message: 'Video deleted successfully' });
 });
 
 app.get('/api/videos/:id/products', (req, res) => {
@@ -340,7 +412,7 @@ app.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
   console.log(`📱 Open http://localhost:${PORT} in your browser`);
   console.log(`📹 Loaded ${videos.length} default videos`);
-  console.log(`🔒 Upload/Edit/Delete features are disabled`);
+  console.log(`✅ Upload/Edit/Delete features are enabled`);
 });
 
 
