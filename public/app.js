@@ -532,8 +532,77 @@ function handleVideoError(videoElement, index) {
     videoElement.style.display = 'none';
 }
 
+// Prevent bounce-back on Android - aggressive fix
+function preventBounce() {
+    const videosContainer = document.getElementById('videos');
+    let lastScrollTop = 0;
+    let isAtTop = false;
+    let isAtBottom = false;
+    
+    // Prevent default touchmove when at boundaries
+    videosContainer.addEventListener('touchstart', (e) => {
+        const scrollTop = videosContainer.scrollTop;
+        const scrollHeight = videosContainer.scrollHeight;
+        const clientHeight = videosContainer.clientHeight;
+        const maxScroll = scrollHeight - clientHeight;
+        
+        isAtTop = scrollTop <= 1;
+        isAtBottom = scrollTop >= maxScroll - 1;
+        lastScrollTop = scrollTop;
+    }, { passive: false });
+    
+    videosContainer.addEventListener('touchmove', (e) => {
+        const scrollTop = videosContainer.scrollTop;
+        const scrollHeight = videosContainer.scrollHeight;
+        const clientHeight = videosContainer.clientHeight;
+        const maxScroll = scrollHeight - clientHeight;
+        
+        // Calculate touch direction
+        const isScrollingUp = scrollTop < lastScrollTop;
+        const isScrollingDown = scrollTop > lastScrollTop;
+        
+        // Prevent overscroll at top
+        if (isAtTop && isScrollingUp) {
+            e.preventDefault();
+            videosContainer.scrollTop = 0;
+            return false;
+        }
+        
+        // Prevent overscroll at bottom
+        if (isAtBottom && isScrollingDown) {
+            e.preventDefault();
+            videosContainer.scrollTop = maxScroll;
+            return false;
+        }
+        
+        // Lock at boundaries
+        if (scrollTop <= 0) {
+            videosContainer.scrollTop = 1;
+        } else if (scrollTop >= maxScroll) {
+            videosContainer.scrollTop = maxScroll - 1;
+        }
+        
+        lastScrollTop = scrollTop;
+    }, { passive: false });
+    
+    // Additional boundary enforcement
+    videosContainer.addEventListener('scroll', () => {
+        const scrollTop = videosContainer.scrollTop;
+        const scrollHeight = videosContainer.scrollHeight;
+        const clientHeight = videosContainer.clientHeight;
+        const maxScroll = scrollHeight - clientHeight;
+        
+        if (scrollTop < 0) {
+            videosContainer.scrollTop = 0;
+        } else if (scrollTop > maxScroll) {
+            videosContainer.scrollTop = maxScroll;
+        }
+    });
+}
+
 // Start the app
 init();
+preventBounce();
 
 
 
