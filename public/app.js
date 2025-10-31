@@ -443,24 +443,40 @@ function playCurrentVideo() {
     
     // For videos 8-9: COMPLETELY unload ALL other videos first to free maximum resources
     if (isProblematicVideo) {
-        console.log(`Loading problematic video ${currentIndex}, clearing all others...`);
+        console.log(`[VIDEO ${currentIndex}] Loading problematic video, clearing all others...`);
+        
+        let unloadedCount = 0;
         containers.forEach((container, index) => {
             if (index !== currentIndex) {
                 const videoEl = container.querySelector('video');
-                if (videoEl && videoEl.src) {
+                if (videoEl) {
+                    const hadSrc = !!(videoEl.src && videoEl.src !== '');
+                    const wasPlaying = !videoEl.paused && !videoEl.ended;
+                    
                     videoEl.pause();
                     videoEl.currentTime = 0;
-                    videoEl.src = '';
-                    videoEl.removeAttribute('src');
-                    videoEl.load();
+                    
+                    if (hadSrc) {
+                        videoEl.src = '';
+                        videoEl.removeAttribute('src');
+                        videoEl.load();
+                        unloadedCount++;
+                        
+                        if (wasPlaying) {
+                            console.log(`[VIDEO ${currentIndex}] Unloaded playing video ${index}`);
+                        }
+                    }
                 }
             }
         });
         
-        // Wait a bit for resources to be fully freed
+        console.log(`[VIDEO ${currentIndex}] Cleared ${unloadedCount} videos, waiting for decoder...`);
+        
+        // Wait longer for resources to be fully freed
         setTimeout(() => {
+            console.log(`[VIDEO ${currentIndex}] Starting load after cleanup delay`);
             continueLoadingVideo();
-        }, 300);
+        }, 500); // Increased delay for better resource freeing
         return;
     }
     
@@ -487,35 +503,61 @@ function playCurrentVideo() {
         };
         
         // Wait for video to be ready before playing
-        const tryPlay = () => {
+        const tryPlay = (attempt = 1) => {
             ensureVideoLoaded();
+            
+            // Log video state for debugging
+            if (isProblematicVideo) {
+                console.log(`[VIDEO ${currentIndex}] Play attempt ${attempt}:`, {
+                    readyState: currentVideoEl.readyState,
+                    networkState: currentVideoEl.networkState,
+                    paused: currentVideoEl.paused,
+                    hasSrc: !!currentVideoEl.src,
+                    videoWidth: currentVideoEl.videoWidth,
+                    videoHeight: currentVideoEl.videoHeight
+                });
+            }
             
             // Apply global mute state to video
             currentVideoEl.muted = globalMuted;
             
+            // For problematic videos, check ready state more carefully
+            if (isProblematicVideo && currentVideoEl.readyState < 2) {
+                console.log(`[VIDEO ${currentIndex}] Not ready yet (readyState: ${currentVideoEl.readyState}), waiting...`);
+                currentVideoEl.addEventListener('canplay', () => {
+                    console.log(`[VIDEO ${currentIndex}] Can play now, attempting playback`);
+                    tryPlay(attempt);
+                }, { once: true });
+                
+                currentVideoEl.addEventListener('error', (e) => {
+                    console.error(`[VIDEO ${currentIndex}] Video error:`, e, currentVideoEl.error);
+                }, { once: true });
+                
+                return;
+            }
+            
             // Play with error handling and retry logic
             const playPromise = currentVideoEl.play();
             if (playPromise !== undefined) {
-                playPromise.catch(e => {
-                    console.log(`Play error at video ${currentIndex}:`, e);
-                    // Retry with longer delay for videos 8-9 (9th and 10th)
-                    const retryDelay = (currentIndex === 8 || currentIndex === 9) ? 800 : 200;
-                    setTimeout(() => {
-                        ensureVideoLoaded();
-                        currentVideoEl.play().catch(err => {
-                            console.log(`Retry play error at video ${currentIndex}:`, err);
-                            // Second retry with longer delay for problematic videos
-                            if (currentIndex === 8 || currentIndex === 9) {
-                                setTimeout(() => {
-                                    ensureVideoLoaded();
-                                    currentVideoEl.play().catch(finalErr => 
-                                        console.log(`Final retry error at video ${currentIndex}:`, finalErr)
-                                    );
-                                }, 1500);
-                            }
-                        });
-                    }, retryDelay);
-                });
+                playPromise
+                    .then(() => {
+                        if (isProblematicVideo) {
+                            console.log(`[VIDEO ${currentIndex}] ✅ Successfully started playing`);
+                        }
+                    })
+                    .catch(e => {
+                        console.log(`[VIDEO ${currentIndex}] Play error (attempt ${attempt}):`, e);
+                        // Retry with longer delay for videos 8-9 (9th and 10th)
+                        const retryDelay = isProblematicVideo ? 1000 : 200;
+                        if (attempt < 3) {
+                            setTimeout(() => {
+                                ensureVideoLoaded();
+                                tryPlay(attempt + 1);
+                            }, retryDelay);
+                        } else {
+                            console.error(`[VIDEO ${currentIndex}] ❌ Failed after ${attempt} attempts`);
+                        }
+                    });
             }
         };
         
@@ -948,7 +990,10 @@ function getMemoryInfo() {
         totalJSHeapSize: 'N/A',
         usedJSHeapSize: 'N/A',
         videoCount: 0,
-        loadedVideos: 0
+        loadedVideos: 0,
+        playingVideos: 0,
+        readyVideos: 0,
+        decoderHealth: 'N/A'
     };
     
     // Check if performance.memory is available (Chrome/Edge)
@@ -960,10 +1005,61 @@ function getMemoryInfo() {
         info.usedJSHeapSize = formatBytes(memory.usedJSHeapSize);
     }
     
-    // Count video elements
+    // Count video elements and their states
     const allVideos = document.querySelectorAll('video');
     info.videoCount = allVideos.length;
-    info.loadedVideos = Array.from(allVideos).filter(v => v.src && v.src !== '').length;
+    
+    let loadedCount = 0;
+    let playingCount = 0;
+    let readyCount = 0;
+    const videoStates = [];
+    
+    allVideos.forEach((video, index) => {
+        const hasSrc = !!(video.src && video.src !== '');
+        const isPlaying = !video.paused && !video.ended && video.currentTime > 0;
+        const readyState = video.readyState;
+        
+        if (hasSrc) {
+            loadedCount++;
+        }
+        if (isPlaying) {
+            playingCount++;
+        }
+        if (readyState >= 3) { // HAVE_FUTURE_DATA
+            readyCount++;
+        }
+        
+        // Track state of problematic videos
+        const containerIndex = parseInt(video.closest('.video-container')?.getAttribute('data-index') || '-1');
+        if (containerIndex === 8 || containerIndex === 9) {
+            videoStates.push({
+                index: containerIndex,
+                hasSrc,
+                isPlaying,
+                readyState,
+                paused: video.paused,
+                error: video.error
+            });
+        }
+    });
+    
+    info.loadedVideos = loadedCount;
+    info.playingVideos = playingCount;
+    info.readyVideos = readyCount;
+    
+    // Calculate decoder health: playing videos should be <= 2 (current + maybe one neighbor)
+    if (playingCount > 3) {
+        info.decoderHealth = `WARNING: ${playingCount} videos playing (too many)`;
+    } else if (playingCount === 1) {
+        info.decoderHealth = 'OK';
+    } else {
+        info.decoderHealth = `OK (${playingCount} active)`;
+    }
+    
+    // Log problematic video states
+    if (videoStates.length > 0) {
+        console.log('Video 8-9 states:', videoStates);
+    }
     
     return info;
 }
@@ -1002,17 +1098,13 @@ function updateMemoryLabel() {
     
     // Get current timestamp for memory check
     const now = new Date();
-    const currentTime = now.toLocaleTimeString('en-US', { 
-        hour12: false, 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        second: '2-digit' 
-    });
     
-    let text = `Videos: ${memInfo.videoCount} (${memInfo.loadedVideos} loaded)\n`;
+    let text = `Videos: ${memInfo.videoCount} total\n`;
+    text += `Loaded: ${memInfo.loadedVideos} | Playing: ${memInfo.playingVideos} | Ready: ${memInfo.readyVideos}\n`;
+    text += `Decoder: ${memInfo.decoderHealth}\n`;
     
     if (memInfo.usedJSHeapSize !== 'N/A') {
-        text += `Memory: ${memInfo.usedJSHeapSize} / ${memInfo.totalJSHeapSize}\n`;
+        text += `JS Heap: ${memInfo.usedJSHeapSize} / ${memInfo.totalJSHeapSize}\n`;
         text += `Limit: ${memInfo.jsHeapSizeLimit}\n`;
     } else {
         text += 'Memory: Not available\n';
@@ -1031,7 +1123,7 @@ function updateMemoryLabel() {
             second: '2-digit',
             hour12: false
         });
-        text += `GitHub Sync: ${syncTimeStr} HKT`;
+        text += `Sync: ${syncTimeStr} HKT`;
     } else {
         const hkTime = now.toLocaleTimeString('en-US', {
             timeZone: 'Asia/Hong_Kong',
