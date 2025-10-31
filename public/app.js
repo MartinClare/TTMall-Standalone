@@ -1104,6 +1104,69 @@ function preventBounce() {
     });
 }
 
+// Console log capture for Android debugging
+const consoleLogs = [];
+const MAX_LOGS = 50;
+
+// Override console.log to also store logs
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+
+console.log = function(...args) {
+    originalLog.apply(console, args);
+    const logEntry = {
+        type: 'log',
+        time: new Date().toISOString(),
+        message: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')
+    };
+    consoleLogs.push(logEntry);
+    if (consoleLogs.length > MAX_LOGS) consoleLogs.shift();
+    updateConsoleDisplay();
+};
+
+console.error = function(...args) {
+    originalError.apply(console, args);
+    const logEntry = {
+        type: 'error',
+        time: new Date().toISOString(),
+        message: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')
+    };
+    consoleLogs.push(logEntry);
+    if (consoleLogs.length > MAX_LOGS) consoleLogs.shift();
+    updateConsoleDisplay();
+};
+
+console.warn = function(...args) {
+    originalWarn.apply(console, args);
+    const logEntry = {
+        type: 'warn',
+        time: new Date().toISOString(),
+        message: args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ')
+    };
+    consoleLogs.push(logEntry);
+    if (consoleLogs.length > MAX_LOGS) consoleLogs.shift();
+    updateConsoleDisplay();
+};
+
+function updateConsoleDisplay() {
+    const display = document.getElementById('consoleDisplay');
+    if (!display) return;
+    
+    // Show last 20 logs, filter for video 8-9 related logs
+    const relevantLogs = consoleLogs
+        .filter(log => log.message.includes('VIDEO 8') || log.message.includes('VIDEO 9') || log.type === 'error')
+        .slice(-20);
+    
+    display.innerHTML = relevantLogs.map(log => {
+        const time = new Date(log.time).toLocaleTimeString();
+        const color = log.type === 'error' ? '#ff4444' : log.type === 'warn' ? '#ffaa00' : '#00ff00';
+        return `<div style="color: ${color}; font-size: 10px; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.1);">
+            <span style="opacity: 0.6;">[${time}]</span> ${log.message}
+        </div>`;
+    }).join('');
+}
+
 // Memory monitoring functions
 function getMemoryInfo() {
     const info = {
@@ -1278,6 +1341,17 @@ function stopMemoryMonitoring() {
     if (memoryCheckInterval) {
         clearInterval(memoryCheckInterval);
         memoryCheckInterval = null;
+    }
+}
+
+// Toggle console display (called from HTML onclick)
+function toggleConsoleDisplay() {
+    const display = document.getElementById('consoleDisplay');
+    if (display) {
+        display.classList.toggle('show');
+        if (display.classList.contains('show')) {
+            updateConsoleDisplay();
+        }
     }
 }
 
