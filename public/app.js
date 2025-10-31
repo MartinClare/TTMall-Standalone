@@ -443,40 +443,92 @@ function playCurrentVideo() {
     
     // For videos 8-9: COMPLETELY unload ALL other videos first to free maximum resources
     if (isProblematicVideo) {
-        console.log(`[VIDEO ${currentIndex}] Loading problematic video, clearing all others...`);
+        console.log(`[VIDEO ${currentIndex}] Loading problematic video, clearing ALL other videos...`);
         
+        // First, force pause and stop ALL videos (even if not playing)
+        const allVideos = document.querySelectorAll('video');
         let unloadedCount = 0;
-        containers.forEach((container, index) => {
-            if (index !== currentIndex) {
-                const videoEl = container.querySelector('video');
-                if (videoEl) {
-                    const hadSrc = !!(videoEl.src && videoEl.src !== '');
-                    const wasPlaying = !videoEl.paused && !videoEl.ended;
-                    
-                    videoEl.pause();
-                    videoEl.currentTime = 0;
-                    
-                    if (hadSrc) {
-                        videoEl.src = '';
-                        videoEl.removeAttribute('src');
-                        videoEl.load();
-                        unloadedCount++;
-                        
-                        if (wasPlaying) {
-                            console.log(`[VIDEO ${currentIndex}] Unloaded playing video ${index}`);
-                        }
+        let playingCount = 0;
+        
+        allVideos.forEach((video, idx) => {
+            const container = video.closest('.video-container');
+            const containerIndex = container ? parseInt(container.getAttribute('data-index')) : -1;
+            
+            if (containerIndex !== currentIndex) {
+                // Force stop
+                video.pause();
+                video.currentTime = 0;
+                
+                // Check if it was playing
+                if (!video.paused && !video.ended && video.currentTime > 0) {
+                    playingCount++;
+                }
+                
+                // Unload completely
+                if (video.src) {
+                    video.src = '';
+                    video.removeAttribute('src');
+                    video.load();
+                    unloadedCount++;
+                }
+                
+                // Clear video element state
+                try {
+                    video.removeAttribute('poster');
+                    if (video.buffered && video.buffered.length > 0) {
+                        // Force clear buffer by removing and re-adding src
+                        video.src = '';
+                        video.load();
                     }
+                } catch (e) {
+                    console.log(`[VIDEO ${currentIndex}] Cleanup error for video ${containerIndex}:`, e);
                 }
             }
         });
         
-        console.log(`[VIDEO ${currentIndex}] Cleared ${unloadedCount} videos, waiting for decoder...`);
+        console.log(`[VIDEO ${currentIndex}] Cleared ${unloadedCount} videos (${playingCount} were playing), forcing garbage collection...`);
         
-        // Wait longer for resources to be fully freed
+        // Force garbage collection if available
+        if (window.gc && typeof window.gc === 'function') {
+            window.gc();
+        }
+        
+        // Wait longer for Android to fully free decoder resources
+        // Android decoders can take 500-1000ms to release
+        const waitTime = 800;
+        console.log(`[VIDEO ${currentIndex}] Waiting ${waitTime}ms for decoder resources...`);
+        
         setTimeout(() => {
-            console.log(`[VIDEO ${currentIndex}] Starting load after cleanup delay`);
-            continueLoadingVideo();
-        }, 500); // Increased delay for better resource freeing
+            // Double-check that other videos are unloaded
+            const stillLoaded = Array.from(document.querySelectorAll('video'))
+                .filter(v => {
+                    const container = v.closest('.video-container');
+                    const idx = container ? parseInt(container.getAttribute('data-index')) : -1;
+                    return idx !== currentIndex && v.src && v.src !== '';
+                }).length;
+            
+            if (stillLoaded > 0) {
+                console.warn(`[VIDEO ${currentIndex}] ⚠️ Still ${stillLoaded} videos loaded! Forcing unload again...`);
+                // Force unload again
+                allVideos.forEach(video => {
+                    const container = video.closest('.video-container');
+                    const idx = container ? parseInt(container.getAttribute('data-index')) : -1;
+                    if (idx !== currentIndex && video.src) {
+                        video.pause();
+                        video.src = '';
+                        video.load();
+                    }
+                });
+                // Wait a bit more
+                setTimeout(() => {
+                    console.log(`[VIDEO ${currentIndex}] Starting load after extended cleanup`);
+                    continueLoadingVideo();
+                }, 300);
+            } else {
+                console.log(`[VIDEO ${currentIndex}] ✅ All videos cleared, starting load`);
+                continueLoadingVideo();
+            }
+        }, waitTime);
         return;
     }
     
@@ -521,18 +573,57 @@ function playCurrentVideo() {
             // Apply global mute state to video
             currentVideoEl.muted = globalMuted;
             
-            // For problematic videos, check ready state more carefully
-            if (isProblematicVideo && currentVideoEl.readyState < 2) {
-                console.log(`[VIDEO ${currentIndex}] Not ready yet (readyState: ${currentVideoEl.readyState}), waiting...`);
-                currentVideoEl.addEventListener('canplay', () => {
-                    console.log(`[VIDEO ${currentIndex}] Can play now, attempting playback`);
+            // For problematic videos, wait for better ready state
+            if (isProblematicVideo && currentVideoEl.readyState < 3) {
+            console.log(`[VIDEO ${currentIndex}] Not ready yet (readyState: ${currentVideoEl.readyState}), waiting for better state...`);
+            
+            // Wait for multiple events to ensure video is truly ready
+            let canPlayFired = false;
+            let loadedDataFired = false;
+            
+            const checkReady = () => {
+                if (canPlayFired && loadedDataFired && currentVideoEl.readyState >= 2) {
+                    console.log(`[VIDEO ${currentIndex}] ✅ Video ready (readyState: ${currentVideoEl.readyState}), attempting playback`);
                     tryPlay(attempt);
-                }, { once: true });
-                
-                currentVideoEl.addEventListener('error', (e) => {
-                    console.error(`[VIDEO ${currentIndex}] Video error:`, e, currentVideoEl.error);
-                }, { once: true });
-                
+                }
+            };
+            
+            currentVideoEl.addEventListener('canplay', () => {
+                console.log(`[VIDEO ${currentIndex}] canplay event fired`);
+                canPlayFired = true;
+                checkReady();
+            }, { once: true });
+            
+            currentVideoEl.addEventListener('loadeddata', () => {
+                console.log(`[VIDEO ${currentIndex}] loadeddata event fired`);
+                loadedDataFired = true;
+                checkReady();
+            }, { once: true });
+            
+            currentVideoEl.addEventListener('canplaythrough', () => {
+                console.log(`[VIDEO ${currentIndex}] canplaythrough event fired - best state!`);
+                canPlayFired = true;
+                loadedDataFired = true;
+                tryPlay(attempt);
+            }, { once: true });
+            
+            currentVideoEl.addEventListener('error', (e) => {
+                console.error(`[VIDEO ${currentIndex}] ❌ Video error:`, e, currentVideoEl.error);
+                if (currentVideoEl.error) {
+                    console.error(`[VIDEO ${currentIndex}] Error code: ${currentVideoEl.error.code}, message: ${currentVideoEl.error.message}`);
+                }
+            }, { once: true });
+            
+            // Fallback timeout - try anyway after 2 seconds
+            setTimeout(() => {
+                if (currentVideoEl.readyState >= 1) {
+                    console.log(`[VIDEO ${currentIndex}] ⚠️ Timeout reached, attempting with readyState: ${currentVideoEl.readyState}`);
+                    tryPlay(attempt);
+                } else {
+                    console.error(`[VIDEO ${currentIndex}] ❌ Still not ready after timeout!`);
+                }
+            }, 2000);
+            
                 return;
             }
             
@@ -563,21 +654,52 @@ function playCurrentVideo() {
         
         // If video is already loaded, play immediately
         if (currentVideoEl.readyState >= 3) { // HAVE_FUTURE_DATA or better
+            console.log(`[VIDEO ${currentIndex}] Video already ready (readyState: ${currentVideoEl.readyState}), playing immediately`);
             tryPlay();
         } else {
             // Wait for video to load - use multiple event listeners
+            if (isProblematicVideo) {
+                console.log(`[VIDEO ${currentIndex}] Waiting for video to load (current readyState: ${currentVideoEl.readyState})...`);
+            }
+            
             const playWhenReady = () => {
                 if (currentVideoEl.readyState >= 2) { // HAVE_CURRENT_DATA or better
+                    if (isProblematicVideo) {
+                        console.log(`[VIDEO ${currentIndex}] Video ready via event (readyState: ${currentVideoEl.readyState})`);
+                    }
                     tryPlay();
                 }
             };
             
-            currentVideoEl.addEventListener('loadeddata', playWhenReady, { once: true });
-            currentVideoEl.addEventListener('canplay', playWhenReady, { once: true });
-            currentVideoEl.addEventListener('canplaythrough', tryPlay, { once: true });
+            currentVideoEl.addEventListener('loadeddata', () => {
+                console.log(`[VIDEO ${currentIndex}] loadeddata event`);
+                playWhenReady();
+            }, { once: true });
+            
+            currentVideoEl.addEventListener('canplay', () => {
+                console.log(`[VIDEO ${currentIndex}] canplay event`);
+                playWhenReady();
+            }, { once: true });
+            
+            currentVideoEl.addEventListener('canplaythrough', () => {
+                console.log(`[VIDEO ${currentIndex}] canplaythrough event - best state!`);
+                tryPlay();
+            }, { once: true });
+            
+            currentVideoEl.addEventListener('error', (e) => {
+                console.error(`[VIDEO ${currentIndex}] Load error:`, e, currentVideoEl.error);
+            }, { once: true });
+            
             // Fallback timeout with longer delay for videos 8-9
-            const fallbackDelay = (currentIndex === 8 || currentIndex === 9) ? 1000 : 500;
-            setTimeout(tryPlay, fallbackDelay);
+            const fallbackDelay = isProblematicVideo ? 2000 : 500;
+            setTimeout(() => {
+                if (currentVideoEl.readyState >= 1) {
+                    console.log(`[VIDEO ${currentIndex}] Fallback timeout - attempting play (readyState: ${currentVideoEl.readyState})`);
+                    tryPlay();
+                } else {
+                    console.error(`[VIDEO ${currentIndex}] ❌ Still not ready after ${fallbackDelay}ms!`);
+                }
+            }, fallbackDelay);
         }
         
         // Update sound button icon to reflect global state
