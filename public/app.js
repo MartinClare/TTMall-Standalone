@@ -587,7 +587,7 @@ function playCurrentVideo() {
                                 
                                 // Log state every 2 seconds for debugging
                                 if (now - lastLogTime > 2000) {
-                                    console.log(`[VIDEO ${currentIndex}] Monitor check #${checkCount}:`, {
+                                    const state = {
                                         paused: currentVideoEl.paused,
                                         ended: currentVideoEl.ended,
                                         currentTime: currentVideoEl.currentTime.toFixed(2),
@@ -596,7 +596,31 @@ function playCurrentVideo() {
                                         videoWidth: currentVideoEl.videoWidth,
                                         videoHeight: currentVideoEl.videoHeight,
                                         buffered: currentVideoEl.buffered.length > 0 ? `${currentVideoEl.buffered.start(0).toFixed(1)}-${currentVideoEl.buffered.end(0).toFixed(1)}` : 'none'
-                                    });
+                                    };
+                                    console.log(`[VIDEO ${currentIndex}] Check #${checkCount}:`, 
+                                        `Time=${state.currentTime}s`, 
+                                        `Paused=${state.paused}`, 
+                                        `ReadyState=${state.readyState}`, 
+                                        `Network=${state.networkState}`,
+                                        `Buffered=${state.buffered}`,
+                                        `Size=${state.videoWidth}x${state.videoHeight}`
+                                    );
+                                    console.log(`[VIDEO ${currentIndex}] Full state:`, state);
+                                    
+                                    // Check if video is visible (not rendering issue)
+                                    const rect = currentVideoEl.getBoundingClientRect();
+                                    const isVisible = rect.width > 0 && rect.height > 0 && 
+                                                     currentVideoEl.offsetWidth > 0 && 
+                                                     currentVideoEl.offsetHeight > 0;
+                                    
+                                    if (!isVisible) {
+                                        console.warn(`[VIDEO ${currentIndex}] ⚠️ Video element has zero dimensions! Forcing reflow...`);
+                                        // Force reflow by toggling display
+                                        currentVideoContainer.style.display = 'none';
+                                        currentVideoContainer.offsetHeight; // Force reflow
+                                        currentVideoContainer.style.display = '';
+                                    }
+                                    
                                     lastLogTime = now;
                                 }
                                 
@@ -612,11 +636,29 @@ function playCurrentVideo() {
                                         });
                                 }
                                 
-                                // Check if video time is stuck
+                                // Check if video time is stuck OR if time advancing but visually frozen
                                 const currentTime = currentVideoEl.currentTime;
                                 if (!currentVideoEl.paused && !currentVideoEl.ended && currentTime > 0) {
                                     const timeDiff = Math.abs(currentTime - lastTime);
-                                    if (timeDiff < 0.05) { // Less than 50ms progress in 500ms = stuck
+                                    
+                                    // If time is advancing normally but visually frozen, force a render refresh
+                                    if (timeDiff > 0.1 && timeDiff < 0.6) { // Normal playback speed
+                                        // Time is advancing but might be visually frozen - force refresh
+                                        const visualCheck = checkCount % 4; // Every 2 seconds (4 * 500ms)
+                                        if (visualCheck === 0 && checkCount > 4) {
+                                            console.log(`[VIDEO ${currentIndex}] Time advancing (${timeDiff.toFixed(2)}s) but checking for visual freeze...`);
+                                            
+                                            // Force video element refresh by toggling opacity briefly
+                                            const originalOpacity = currentVideoEl.style.opacity || '';
+                                            currentVideoEl.style.opacity = '0.99';
+                                            setTimeout(() => {
+                                                currentVideoEl.style.opacity = originalOpacity;
+                                            }, 10);
+                                            
+                                            // Force reflow
+                                            currentVideoEl.offsetHeight;
+                                        }
+                                    } else if (timeDiff < 0.05) { // Less than 50ms progress in 500ms = stuck
                                         console.warn(`[VIDEO ${currentIndex}] ⚠️ TIME STUCK at ${currentTime.toFixed(2)}s (diff: ${timeDiff.toFixed(3)}s)`);
                                         
                                         // Aggressive unstick: pause, seek, play
@@ -712,16 +754,29 @@ function playCurrentVideo() {
     });
     
     // Handle nearby videos (preload neighbors only)
+    // SPECIAL: Don't preload videos 8-9 - they cause decoder issues
     containers.forEach((container, index) => {
         if (index === currentIndex) return;
         
         const videoEl = container.querySelector('video');
         if (!videoEl) return;
         
+        // Never preload videos 8-9 - they need all decoder resources
+        if (index === 8 || index === 9) {
+            // Unload if loaded
+            if (videoEl.src) {
+                videoEl.pause();
+                videoEl.src = '';
+                videoEl.removeAttribute('src');
+                videoEl.load();
+            }
+            return;
+        }
+        
         const distance = Math.abs(index - currentIndex);
         
         if (distance <= maxPreloadDistance) {
-            // Preload adjacent videos
+            // Preload adjacent videos (but not 8-9)
             if (videoEl.dataset.src && !videoEl.src) {
                 videoEl.src = videoEl.dataset.src;
                 videoEl.load();
