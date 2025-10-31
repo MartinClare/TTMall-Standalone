@@ -442,7 +442,7 @@ function updateCurrentVideoIndex() {
     }
 }
 
-function playCurrentVideo() {
+async function playCurrentVideo() {
     const containers = document.querySelectorAll('.video-container');
     const maxPreloadDistance = 1; // Only preload immediate neighbors
     
@@ -554,9 +554,9 @@ function playCurrentVideo() {
     }
     */
     
-    continueLoadingVideo();
+    await continueLoadingVideo();
     
-    function continueLoadingVideo() {
+    async function continueLoadingVideo() {
         // DON'T cleanup immediately - let current video load first
         // Only cleanup very distant videos that won't interfere
         
@@ -968,15 +968,35 @@ function playCurrentVideo() {
         trackVideoView(videos[currentIndex]?.id);
     }
     
-    // Pause ALL other videos first
-    containers.forEach((container, index) => {
-        if (index !== currentIndex) {
-            const videoEl = container.querySelector('video');
-            if (videoEl) {
-                videoEl.pause();
+    // For videos 8-9: AGGRESSIVELY unload ALL other videos FIRST before loading
+    if (currentIndex === 8 || currentIndex === 9) {
+        console.log(`[VIDEO ${currentIndex}] Aggressively unloading ALL other videos before load...`);
+        document.querySelectorAll('video').forEach((video) => {
+            const container = video.closest('.video-container');
+            const idx = container ? parseInt(container.getAttribute('data-index')) : -1;
+            if (idx !== currentIndex) {
+                video.pause();
+                video.currentTime = 0;
+                if (video.src) {
+                    video.src = '';
+                    video.removeAttribute('src');
+                    video.load();
+                }
             }
-        }
-    });
+        });
+        // Wait a moment for Android to free decoder resources
+        await new Promise(resolve => setTimeout(resolve, 200));
+    } else {
+        // For other videos, just pause
+        containers.forEach((container, index) => {
+            if (index !== currentIndex) {
+                const videoEl = container.querySelector('video');
+                if (videoEl) {
+                    videoEl.pause();
+                }
+            }
+        });
+    }
     
     // Handle nearby videos (preload neighbors only)
     // SPECIAL: Don't preload videos 8-9 - they cause decoder issues
