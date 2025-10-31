@@ -678,19 +678,50 @@ function playCurrentVideo() {
                         if (isProblematicVideo) {
                             console.log(`[VIDEO ${currentIndex}] ✅ Successfully started playing`);
                             
-                            // Monitor playback to detect freezes
+                            // Monitor playback to detect freezes (same aggressive logic)
+                            let resumeAttempts = 0;
+                            const maxResumeAttempts = 5;
+                            
                             const monitorInterval = setInterval(() => {
                                 if (currentVideoEl.paused || currentVideoEl.ended) {
-                                    console.warn(`[VIDEO ${currentIndex}] ⚠️ Video paused/ended! Attempting resume...`);
-                                    if (!currentVideoEl.ended) {
-                                        currentVideoEl.play().catch(err => {
-                                            console.error(`[VIDEO ${currentIndex}] Resume failed:`, err);
+                                    resumeAttempts++;
+                                    console.warn(`[VIDEO ${currentIndex}] ⚠️ Video paused/ended! Attempt ${resumeAttempts}/${maxResumeAttempts}`);
+                                    
+                                    if (!currentVideoEl.ended && resumeAttempts <= maxResumeAttempts) {
+                                        // Unload other videos before resume
+                                        document.querySelectorAll('video').forEach((video, idx) => {
+                                            const container = video.closest('.video-container');
+                                            const containerIndex = container ? parseInt(container.getAttribute('data-index')) : -1;
+                                            if (containerIndex !== currentIndex && video.src) {
+                                                video.pause();
+                                                video.src = '';
+                                                video.removeAttribute('src');
+                                                video.load();
+                                            }
                                         });
+                                        
+                                        setTimeout(() => {
+                                            if (!currentVideoEl.src && currentVideoEl.dataset.src) {
+                                                currentVideoEl.src = currentVideoEl.dataset.src;
+                                                currentVideoEl.load();
+                                            }
+                                            currentVideoEl.muted = globalMuted;
+                                            currentVideoEl.play()
+                                                .then(() => {
+                                                    console.log(`[VIDEO ${currentIndex}] ✅ Resume successful!`);
+                                                    resumeAttempts = 0;
+                                                })
+                                                .catch(err => {
+                                                    console.error(`[VIDEO ${currentIndex}] ❌ Resume failed:`, err);
+                                                });
+                                        }, 300);
                                     }
+                                } else {
+                                    resumeAttempts = 0;
                                 }
-                            }, 500);
+                            }, 300);
                             
-                            setTimeout(() => clearInterval(monitorInterval), 10000);
+                            setTimeout(() => clearInterval(monitorInterval), 15000);
                         }
                     })
                     .catch(e => {
@@ -726,30 +757,71 @@ function playCurrentVideo() {
                             
                             // Monitor playback state to detect if it freezes
                             if (isProblematicVideo) {
+                                let resumeAttempts = 0;
+                                const maxResumeAttempts = 5;
+                                
                                 const monitorInterval = setInterval(() => {
                                     if (currentVideoEl.paused || currentVideoEl.ended) {
-                                        console.warn(`[VIDEO ${currentIndex}] ⚠️ Video paused/ended unexpectedly! Paused: ${currentVideoEl.paused}, Ended: ${currentVideoEl.ended}`);
+                                        resumeAttempts++;
+                                        console.warn(`[VIDEO ${currentIndex}] ⚠️ Video paused/ended! Attempt ${resumeAttempts}/${maxResumeAttempts}`);
                                         
-                                        // Try to resume
-                                        if (!currentVideoEl.ended) {
-                                            console.log(`[VIDEO ${currentIndex}] Attempting to resume...`);
-                                            currentVideoEl.play().catch(err => {
-                                                console.error(`[VIDEO ${currentIndex}] ❌ Resume failed:`, err);
+                                        if (!currentVideoEl.ended && resumeAttempts <= maxResumeAttempts) {
+                                            // First, aggressively unload ALL other videos again
+                                            console.log(`[VIDEO ${currentIndex}] Clearing other videos before resume attempt...`);
+                                            document.querySelectorAll('video').forEach((video, idx) => {
+                                                const container = video.closest('.video-container');
+                                                const containerIndex = container ? parseInt(container.getAttribute('data-index')) : -1;
+                                                if (containerIndex !== currentIndex && video.src) {
+                                                    video.pause();
+                                                    video.src = '';
+                                                    video.removeAttribute('src');
+                                                    video.load();
+                                                }
                                             });
+                                            
+                                            // Force garbage collection
+                                            if (window.gc) window.gc();
+                                            
+                                            // Wait a moment for decoder to free, then resume
+                                            setTimeout(() => {
+                                                console.log(`[VIDEO ${currentIndex}] Attempting aggressive resume...`);
+                                                // Ensure video source is still set
+                                                if (!currentVideoEl.src && currentVideoEl.dataset.src) {
+                                                    currentVideoEl.src = currentVideoEl.dataset.src;
+                                                    currentVideoEl.load();
+                                                }
+                                                
+                                                // Force mute and play
+                                                currentVideoEl.muted = globalMuted;
+                                                currentVideoEl.play()
+                                                    .then(() => {
+                                                        console.log(`[VIDEO ${currentIndex}] ✅ Resume successful!`);
+                                                        resumeAttempts = 0; // Reset counter on success
+                                                    })
+                                                    .catch(err => {
+                                                        console.error(`[VIDEO ${currentIndex}] ❌ Resume failed:`, err);
+                                                        if (resumeAttempts < maxResumeAttempts) {
+                                                            console.log(`[VIDEO ${currentIndex}] Will retry resume in 1 second...`);
+                                                        } else {
+                                                            console.error(`[VIDEO ${currentIndex}] ❌ Max resume attempts reached. Video may be stuck.`);
+                                                        }
+                                                    });
+                                            }, 300);
                                         }
-                                    } else if (currentVideoEl.readyState >= 4) {
-                                        // Video is playing and ready - stop monitoring after 3 seconds
-                                        setTimeout(() => {
-                                            clearInterval(monitorInterval);
-                                            console.log(`[VIDEO ${currentIndex}] ✅ Playback stable, stopping monitor`);
-                                        }, 3000);
+                                    } else {
+                                        // Video is playing - reset counter
+                                        if (resumeAttempts > 0) {
+                                            console.log(`[VIDEO ${currentIndex}] ✅ Video playing again`);
+                                            resumeAttempts = 0;
+                                        }
                                     }
-                                }, 500); // Check every 500ms
+                                }, 300); // Check every 300ms (more frequent)
                                 
-                                // Stop monitoring after 10 seconds or when navigating away
+                                // Stop monitoring after 15 seconds
                                 setTimeout(() => {
                                     clearInterval(monitorInterval);
-                                }, 10000);
+                                    console.log(`[VIDEO ${currentIndex}] Stopped playback monitoring`);
+                                }, 15000);
                             }
                         })
                         .catch(e => {
