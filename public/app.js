@@ -351,7 +351,7 @@ function setupScrollListener() {
         // If at the top or bottom, prevent further scrolling
         if (scrollTop <= 0) {
             videosContainer.scrollTop = 0;
-        } else if (scrollTop >= maxScroll) {
+        } else if (scrollTop >= maxScroll) {v
             videosContainer.scrollTop = maxScroll;
         }
         
@@ -374,6 +374,9 @@ function cleanupDistantVideos() {
     const maxDistance = 3; // Keep only 3 videos around current (prev, current, next)
     
     containers.forEach((container, index) => {
+        // CRITICAL: Never cleanup the current video
+        if (index === currentIndex) return;
+        
         const distance = Math.abs(index - currentIndex);
         const videoEl = container.querySelector('video');
         
@@ -452,8 +455,15 @@ function playCurrentVideo() {
     const containers = document.querySelectorAll('.video-container');
     const maxPreloadDistance = 1; // Only preload immediate neighbors
     
-    // First, aggressively cleanup distant videos
+    // Never cleanup the current video - ensure it's always loaded
+    const currentVideoContainer = containers[currentIndex];
+    const currentVideoEl = currentVideoContainer?.querySelector('video');
+    
+    // First, aggressively cleanup distant videos (but never the current one)
     containers.forEach((container, index) => {
+        // Never cleanup current video
+        if (index === currentIndex) return;
+        
         const videoEl = container.querySelector('video');
         if (!videoEl) return;
         
@@ -471,40 +481,72 @@ function playCurrentVideo() {
         }
     });
     
-    // Then handle current and nearby videos
+    // Then handle current video first (priority)
+    if (currentVideoEl && currentIndex >= 0 && currentIndex < videos.length) {
+        // Ensure current video is loaded
+        if (currentVideoEl.dataset.src && !currentVideoEl.src) {
+            currentVideoEl.src = currentVideoEl.dataset.src;
+            currentVideoEl.load();
+        }
+        
+        // Wait for video to be ready before playing
+        const tryPlay = () => {
+            // Apply global mute state to video
+            currentVideoEl.muted = globalMuted;
+            
+            // Play with error handling and retry logic
+            const playPromise = currentVideoEl.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(e => {
+                    console.log(`Play error at video ${currentIndex}:`, e);
+                    // Retry with exponential backoff (especially for video 8)
+                    const retryDelay = currentIndex === 8 ? 500 : 100;
+                    setTimeout(() => {
+                        currentVideoEl.play().catch(err => {
+                            console.log(`Retry play error at video ${currentIndex}:`, err);
+                            // Second retry with longer delay for problematic videos
+                            if (currentIndex === 8) {
+                                setTimeout(() => {
+                                    currentVideoEl.play().catch(finalErr => 
+                                        console.log(`Final retry error at video ${currentIndex}:`, finalErr)
+                                    );
+                                }, 1000);
+                            }
+                        });
+                    }, retryDelay);
+                });
+            }
+        };
+        
+        // If video is already loaded, play immediately
+        if (currentVideoEl.readyState >= 2) {
+            tryPlay();
+        } else {
+            // Wait for video to load
+            currentVideoEl.addEventListener('loadeddata', tryPlay, { once: true });
+            currentVideoEl.addEventListener('canplay', tryPlay, { once: true });
+            // Fallback timeout
+            setTimeout(tryPlay, 300);
+        }
+        
+        // Update sound button icon to reflect global state
+        updateSoundButtonIcon();
+        
+        // Track video view when it starts playing
+        trackVideoView(videos[currentIndex]?.id);
+    }
+    
+    // Handle nearby videos (preload neighbors)
     containers.forEach((container, index) => {
+        // Skip current video (already handled)
+        if (index === currentIndex) return;
+        
         const videoEl = container.querySelector('video');
         if (!videoEl) return;
         
         const distance = Math.abs(index - currentIndex);
         
-        if (index === currentIndex) {
-            // Load and play current video
-            if (videoEl.dataset.src && !videoEl.src) {
-                videoEl.src = videoEl.dataset.src;
-                videoEl.load();
-            }
-            // Apply global mute state to video
-            videoEl.muted = globalMuted;
-            
-            // Play with error handling
-            const playPromise = videoEl.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(e => {
-                    console.log('Play error:', e);
-                    // Retry after a short delay
-                    setTimeout(() => {
-                        videoEl.play().catch(err => console.log('Retry play error:', err));
-                    }, 100);
-                });
-            }
-            
-            // Update sound button icon to reflect global state
-            updateSoundButtonIcon();
-            
-            // Track video view when it starts playing
-            trackVideoView(videos[currentIndex]?.id);
-        } else if (distance <= maxPreloadDistance) {
+        if (distance <= maxPreloadDistance) {
             // Preload only immediate neighbors (previous and next)
             if (videoEl.dataset.src && !videoEl.src) {
                 videoEl.src = videoEl.dataset.src;
@@ -518,10 +560,12 @@ function playCurrentVideo() {
     });
     
     // Cleanup after a short delay to allow video to start playing
+    // Longer delay for video 8 (9th video) to ensure it loads properly
+    const cleanupDelay = currentIndex === 8 ? 500 : 200;
     setTimeout(() => {
         cleanupDistantVideos();
         updateMemoryLabel(); // Update memory info after cleanup
-    }, 200);
+    }, cleanupDelay);
 }
 
 function scrollToVideo(index) {
