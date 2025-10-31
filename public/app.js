@@ -429,9 +429,6 @@ function playCurrentVideo() {
     const containers = document.querySelectorAll('.video-container');
     const maxPreloadDistance = 1; // Only preload immediate neighbors
     
-    // Special handling for problematic videos 8-9
-    const isProblematicVideo = (currentIndex === 8 || currentIndex === 9);
-    
     // Get current video container
     const currentVideoContainer = containers[currentIndex];
     const currentVideoEl = currentVideoContainer?.querySelector('video');
@@ -441,7 +438,9 @@ function playCurrentVideo() {
         return;
     }
     
-    // For videos 8-9: COMPLETELY unload ALL other videos first to free maximum resources
+    // REMOVED: Special handling for problematic videos 8-9 - testing normal behavior
+    /*
+    const isProblematicVideo = (currentIndex === 8 || currentIndex === 9);
     if (isProblematicVideo) {
         console.log(`[VIDEO ${currentIndex}] Loading problematic video, clearing ALL other videos...`);
         
@@ -536,17 +535,13 @@ function playCurrentVideo() {
         }, waitTime);
         return;
     }
+    */
     
     continueLoadingVideo();
     
     function continueLoadingVideo() {
         // DON'T cleanup immediately - let current video load first
         // Only cleanup very distant videos that won't interfere
-        
-        // For problematic videos, log that we're starting to load
-        if (isProblematicVideo) {
-            console.log(`[VIDEO ${currentIndex}] continueLoadingVideo() called`);
-        }
         
         // Then handle current video FIRST (highest priority)
         if (currentVideoEl && currentIndex >= 0 && currentIndex < videos.length) {
@@ -555,13 +550,6 @@ function playCurrentVideo() {
                 console.log(`[VIDEO ${currentIndex}] Setting video src from dataset: ${currentVideoEl.dataset.src}`);
                 currentVideoEl.src = currentVideoEl.dataset.src;
                 currentVideoEl.load();
-            } else if (currentVideoEl.src) {
-                console.log(`[VIDEO ${currentIndex}] Video src already set: ${currentVideoEl.src}`);
-                // Force reload to ensure fresh state
-                if (isProblematicVideo) {
-                    console.log(`[VIDEO ${currentIndex}] Forcing reload...`);
-                    currentVideoEl.load();
-                }
             }
         
         // Force current video to stay loaded
@@ -576,342 +564,51 @@ function playCurrentVideo() {
         const tryPlay = (attempt = 1) => {
             ensureVideoLoaded();
             
-            // Log video state for debugging
-            if (isProblematicVideo) {
-                console.log(`[VIDEO ${currentIndex}] Play attempt ${attempt}:`, {
-                    readyState: currentVideoEl.readyState,
-                    networkState: currentVideoEl.networkState,
-                    paused: currentVideoEl.paused,
-                    hasSrc: !!currentVideoEl.src,
-                    videoWidth: currentVideoEl.videoWidth,
-                    videoHeight: currentVideoEl.videoHeight
-                });
-            }
-            
             // Apply global mute state to video
             currentVideoEl.muted = globalMuted;
-            
-            // For problematic videos, wait for readyState 4 (best state)
-            if (isProblematicVideo && currentVideoEl.readyState < 4) {
-                console.log(`[VIDEO ${currentIndex}] Not at readyState 4 yet (current: ${currentVideoEl.readyState}), waiting for HAVE_ENOUGH_DATA...`);
-            
-            // Wait for multiple events to ensure video is truly ready
-            let canPlayFired = false;
-            let loadedDataFired = false;
-            
-            const checkReady = () => {
-                // For problematic videos, wait for readyState 4 (HAVE_ENOUGH_DATA)
-                const minReadyState = isProblematicVideo ? 4 : 2;
-                if (currentVideoEl.readyState >= minReadyState) {
-                    console.log(`[VIDEO ${currentIndex}] ✅ Video ready (readyState: ${currentVideoEl.readyState}), attempting playback`);
-                    tryPlay(attempt);
-                } else if (canPlayFired && loadedDataFired && currentVideoEl.readyState >= 2) {
-                    // Fallback: if both events fired and readyState >= 2, try anyway for non-problematic
-                    if (!isProblematicVideo) {
-                        console.log(`[VIDEO ${currentIndex}] ✅ Video ready (readyState: ${currentVideoEl.readyState}), attempting playback`);
-                        tryPlay(attempt);
-                    }
-                }
-            };
-            
-            currentVideoEl.addEventListener('canplay', () => {
-                console.log(`[VIDEO ${currentIndex}] canplay event fired`);
-                canPlayFired = true;
-                checkReady();
-            }, { once: true });
-            
-            currentVideoEl.addEventListener('loadeddata', () => {
-                console.log(`[VIDEO ${currentIndex}] loadeddata event fired`);
-                loadedDataFired = true;
-                checkReady();
-            }, { once: true });
-            
-            currentVideoEl.addEventListener('canplaythrough', () => {
-                console.log(`[VIDEO ${currentIndex}] canplaythrough event fired - best state!`);
-                canPlayFired = true;
-                loadedDataFired = true;
-                // For problematic videos, verify readyState 4 before playing
-                if (isProblematicVideo && currentVideoEl.readyState >= 4) {
-                    console.log(`[VIDEO ${currentIndex}] ✅ readyState 4 confirmed, playing now`);
-                    tryPlay(attempt);
-                } else if (!isProblematicVideo) {
-                    tryPlay(attempt);
-                }
-            }, { once: true });
-            
-            // Add loadedmetadata listener for early detection
-            if (isProblematicVideo) {
-                currentVideoEl.addEventListener('loadedmetadata', () => {
-                    console.log(`[VIDEO ${currentIndex}] loadedmetadata fired, readyState: ${currentVideoEl.readyState}`);
-                    if (currentVideoEl.readyState >= 4) {
-                        console.log(`[VIDEO ${currentIndex}] ✅ ReadyState 4 detected via loadedmetadata, playing immediately`);
-                        tryPlay(attempt);
-                    }
-                }, { once: true });
-            }
-            
-            currentVideoEl.addEventListener('error', (e) => {
-                console.error(`[VIDEO ${currentIndex}] ❌ Video error:`, e, currentVideoEl.error);
-                if (currentVideoEl.error) {
-                    console.error(`[VIDEO ${currentIndex}] Error code: ${currentVideoEl.error.code}, message: ${currentVideoEl.error.message}`);
-                }
-            }, { once: true });
-            
-            // Fallback timeout - try anyway after 2 seconds
-            setTimeout(() => {
-                if (currentVideoEl.readyState >= 1) {
-                    console.log(`[VIDEO ${currentIndex}] ⚠️ Timeout reached, attempting with readyState: ${currentVideoEl.readyState}`);
-                    tryPlay(attempt);
-                } else {
-                    console.error(`[VIDEO ${currentIndex}] ❌ Still not ready after timeout!`);
-                }
-            }, 2000);
-            
-                return;
-            }
             
             // Play with error handling and retry logic
             const playPromise = currentVideoEl.play();
             if (playPromise !== undefined) {
-                playPromise
-                    .then(() => {
-                        if (isProblematicVideo) {
-                            console.log(`[VIDEO ${currentIndex}] ✅ Successfully started playing`);
-                            
-                            // Monitor playback to detect freezes (same aggressive logic)
-                            let resumeAttempts = 0;
-                            const maxResumeAttempts = 5;
-                            
-                            const monitorInterval = setInterval(() => {
-                                if (currentVideoEl.paused || currentVideoEl.ended) {
-                                    resumeAttempts++;
-                                    console.warn(`[VIDEO ${currentIndex}] ⚠️ Video paused/ended! Attempt ${resumeAttempts}/${maxResumeAttempts}`);
-                                    
-                                    if (!currentVideoEl.ended && resumeAttempts <= maxResumeAttempts) {
-                                        // Unload other videos before resume
-                                        document.querySelectorAll('video').forEach((video, idx) => {
-                                            const container = video.closest('.video-container');
-                                            const containerIndex = container ? parseInt(container.getAttribute('data-index')) : -1;
-                                            if (containerIndex !== currentIndex && video.src) {
-                                                video.pause();
-                                                video.src = '';
-                                                video.removeAttribute('src');
-                                                video.load();
-                                            }
-                                        });
-                                        
-                                        setTimeout(() => {
-                                            if (!currentVideoEl.src && currentVideoEl.dataset.src) {
-                                                currentVideoEl.src = currentVideoEl.dataset.src;
-                                                currentVideoEl.load();
-                                            }
-                                            currentVideoEl.muted = globalMuted;
-                                            currentVideoEl.play()
-                                                .then(() => {
-                                                    console.log(`[VIDEO ${currentIndex}] ✅ Resume successful!`);
-                                                    resumeAttempts = 0;
-                                                })
-                                                .catch(err => {
-                                                    console.error(`[VIDEO ${currentIndex}] ❌ Resume failed:`, err);
-                                                });
-                                        }, 300);
-                                    }
-                                } else {
-                                    resumeAttempts = 0;
-                                }
-                            }, 300);
-                            
-                            setTimeout(() => clearInterval(monitorInterval), 15000);
-                        }
-                    })
-                    .catch(e => {
-                        console.log(`[VIDEO ${currentIndex}] Play error (attempt ${attempt}):`, e);
-                        // Retry with longer delay for videos 8-9 (9th and 10th)
-                        const retryDelay = isProblematicVideo ? 1000 : 200;
-                        if (attempt < 3) {
-                            setTimeout(() => {
-                                ensureVideoLoaded();
-                                tryPlay(attempt + 1);
-                            }, retryDelay);
-                        } else {
-                            console.error(`[VIDEO ${currentIndex}] ❌ Failed after ${attempt} attempts`);
-                        }
-                    });
+                playPromise.catch(e => {
+                    console.log(`Play error at video ${currentIndex}:`, e);
+                    // Retry with delay
+                    const retryDelay = 200;
+                    setTimeout(() => {
+                        ensureVideoLoaded();
+                        currentVideoEl.play().catch(err => {
+                            console.log(`Retry play error at video ${currentIndex}:`, err);
+                        });
+                    }, retryDelay);
+                });
             }
         };
         
-        // For problematic videos with readyState 4, play IMMEDIATELY
-        if (isProblematicVideo) {
-            console.log(`[VIDEO ${currentIndex}] Current readyState: ${currentVideoEl.readyState}, networkState: ${currentVideoEl.networkState}`);
-            
-            // readyState 4 = HAVE_ENOUGH_DATA (best state!) - play immediately
-            if (currentVideoEl.readyState >= 4) {
-                console.log(`[VIDEO ${currentIndex}] ✅ readyState 4 (HAVE_ENOUGH_DATA) - playing IMMEDIATELY`);
-                // Force play immediately without waiting
-                currentVideoEl.muted = globalMuted;
-                const playPromise = currentVideoEl.play();
-                if (playPromise !== undefined) {
-                    playPromise
-                        .then(() => {
-                            console.log(`[VIDEO ${currentIndex}] ✅ Successfully started playing (readyState 4)`);
-                            
-                            // Monitor playback state to detect if it freezes
-                            if (isProblematicVideo) {
-                                let resumeAttempts = 0;
-                                const maxResumeAttempts = 5;
-                                
-                                const monitorInterval = setInterval(() => {
-                                    if (currentVideoEl.paused || currentVideoEl.ended) {
-                                        resumeAttempts++;
-                                        console.warn(`[VIDEO ${currentIndex}] ⚠️ Video paused/ended! Attempt ${resumeAttempts}/${maxResumeAttempts}`);
-                                        
-                                        if (!currentVideoEl.ended && resumeAttempts <= maxResumeAttempts) {
-                                            // First, aggressively unload ALL other videos again
-                                            console.log(`[VIDEO ${currentIndex}] Clearing other videos before resume attempt...`);
-                                            document.querySelectorAll('video').forEach((video, idx) => {
-                                                const container = video.closest('.video-container');
-                                                const containerIndex = container ? parseInt(container.getAttribute('data-index')) : -1;
-                                                if (containerIndex !== currentIndex && video.src) {
-                                                    video.pause();
-                                                    video.src = '';
-                                                    video.removeAttribute('src');
-                                                    video.load();
-                                                }
-                                            });
-                                            
-                                            // Force garbage collection
-                                            if (window.gc) window.gc();
-                                            
-                                            // Wait a moment for decoder to free, then resume
-                                            setTimeout(() => {
-                                                console.log(`[VIDEO ${currentIndex}] Attempting aggressive resume...`);
-                                                // Ensure video source is still set
-                                                if (!currentVideoEl.src && currentVideoEl.dataset.src) {
-                                                    currentVideoEl.src = currentVideoEl.dataset.src;
-                                                    currentVideoEl.load();
-                                                }
-                                                
-                                                // Force mute and play
-                                                currentVideoEl.muted = globalMuted;
-                                                currentVideoEl.play()
-                                                    .then(() => {
-                                                        console.log(`[VIDEO ${currentIndex}] ✅ Resume successful!`);
-                                                        resumeAttempts = 0; // Reset counter on success
-                                                    })
-                                                    .catch(err => {
-                                                        console.error(`[VIDEO ${currentIndex}] ❌ Resume failed:`, err);
-                                                        if (resumeAttempts < maxResumeAttempts) {
-                                                            console.log(`[VIDEO ${currentIndex}] Will retry resume in 1 second...`);
-                                                        } else {
-                                                            console.error(`[VIDEO ${currentIndex}] ❌ Max resume attempts reached. Video may be stuck.`);
-                                                        }
-                                                    });
-                                            }, 300);
-                                        }
-                                    } else {
-                                        // Video is playing - reset counter
-                                        if (resumeAttempts > 0) {
-                                            console.log(`[VIDEO ${currentIndex}] ✅ Video playing again`);
-                                            resumeAttempts = 0;
-                                        }
-                                    }
-                                }, 300); // Check every 300ms (more frequent)
-                                
-                                // Stop monitoring after 15 seconds
-                                setTimeout(() => {
-                                    clearInterval(monitorInterval);
-                                    console.log(`[VIDEO ${currentIndex}] Stopped playback monitoring`);
-                                }, 15000);
-                            }
-                        })
-                        .catch(e => {
-                            console.error(`[VIDEO ${currentIndex}] ❌ Play failed despite readyState 4:`, e);
-                            // Retry after a short delay
-                            setTimeout(() => {
-                                console.log(`[VIDEO ${currentIndex}] Retrying play...`);
-                                currentVideoEl.play().catch(err => {
-                                    console.error(`[VIDEO ${currentIndex}] ❌ Retry also failed:`, err);
-                                });
-                            }, 500);
-                        });
-                }
-                return; // Skip normal loading logic
-            } else if (currentVideoEl.readyState >= 3) {
-                console.log(`[VIDEO ${currentIndex}] Video ready (readyState: ${currentVideoEl.readyState}), playing immediately`);
-                tryPlay();
-            } else {
-                // For problematic videos, be more aggressive - try play even if not fully ready
-                console.log(`[VIDEO ${currentIndex}] Not fully ready (readyState: ${currentVideoEl.readyState}), attempting play after short delay...`);
-                setTimeout(() => {
-                    if (currentVideoEl.readyState >= 1) {
-                        console.log(`[VIDEO ${currentIndex}] ReadyState improved to ${currentVideoEl.readyState}, attempting play`);
-                        tryPlay();
-                    }
-                }, 300);
-            }
-        }
-        
-        // Standard loading logic for non-problematic videos
-        if (currentVideoEl.readyState >= 4) { // HAVE_ENOUGH_DATA (best)
-            console.log(`[VIDEO ${currentIndex}] Video fully ready (readyState: 4), playing immediately`);
-            tryPlay();
-        } else if (currentVideoEl.readyState >= 3) { // HAVE_FUTURE_DATA
-            console.log(`[VIDEO ${currentIndex}] Video ready (readyState: 3), playing immediately`);
+        // Standard loading logic - no special treatment
+        if (currentVideoEl.readyState >= 3) { // HAVE_FUTURE_DATA or better
             tryPlay();
         } else {
             // Wait for video to load - use multiple event listeners
-            if (isProblematicVideo) {
-                console.log(`[VIDEO ${currentIndex}] Waiting for video to load (current readyState: ${currentVideoEl.readyState})...`);
-            }
             
             const playWhenReady = () => {
                 if (currentVideoEl.readyState >= 2) { // HAVE_CURRENT_DATA or better
-                    if (isProblematicVideo) {
-                        console.log(`[VIDEO ${currentIndex}] Video ready via event (readyState: ${currentVideoEl.readyState})`);
-                    }
                     tryPlay();
                 }
             };
             
-            currentVideoEl.addEventListener('loadeddata', () => {
-                console.log(`[VIDEO ${currentIndex}] loadeddata event`);
-                playWhenReady();
-            }, { once: true });
+            currentVideoEl.addEventListener('loadeddata', playWhenReady, { once: true });
+            currentVideoEl.addEventListener('canplay', playWhenReady, { once: true });
+            currentVideoEl.addEventListener('canplaythrough', tryPlay, { once: true });
             
-            currentVideoEl.addEventListener('canplay', () => {
-                console.log(`[VIDEO ${currentIndex}] canplay event`);
-                playWhenReady();
-            }, { once: true });
-            
-            currentVideoEl.addEventListener('canplaythrough', () => {
-                console.log(`[VIDEO ${currentIndex}] canplaythrough event - best state!`);
-                tryPlay();
-            }, { once: true });
-            
-            currentVideoEl.addEventListener('error', (e) => {
-                console.error(`[VIDEO ${currentIndex}] Load error:`, e, currentVideoEl.error);
-            }, { once: true });
-            
-            // Fallback timeout with longer delay for videos 8-9
-            const fallbackDelay = isProblematicVideo ? 2000 : 500;
-            setTimeout(() => {
-                if (currentVideoEl.readyState >= 1) {
-                    console.log(`[VIDEO ${currentIndex}] Fallback timeout - attempting play (readyState: ${currentVideoEl.readyState})`);
-                    tryPlay();
-                } else {
-                    console.error(`[VIDEO ${currentIndex}] ❌ Still not ready after ${fallbackDelay}ms!`);
-                }
-            }, fallbackDelay);
+            // Fallback timeout
+            setTimeout(tryPlay, 500);
         }
         
         // Update sound button icon to reflect global state
         updateSoundButtonIcon();
         
-        // Track video view when it starts playing (delay for videos 8-9)
-        const viewTrackDelay = (currentIndex === 8 || currentIndex === 9) ? 1500 : 0;
-        setTimeout(() => {
-            trackVideoView(videos[currentIndex]?.id);
-        }, viewTrackDelay);
+        // Track video view when it starts playing
+        trackVideoView(videos[currentIndex]?.id);
     }
     
     // Pause ALL other videos first
@@ -924,37 +621,32 @@ function playCurrentVideo() {
         }
     });
     
-    // Handle nearby videos - but SKIP if current is problematic video (no preloading for 8-9)
-    if (!isProblematicVideo) {
-        containers.forEach((container, index) => {
-            if (index === currentIndex) return;
-            
-            const videoEl = container.querySelector('video');
-            if (!videoEl) return;
-            
-            const distance = Math.abs(index - currentIndex);
-            
-            // Don't preload videos 8-9 when they're neighbors
-            const isNeighborProblematic = (index === 8 || index === 9);
-            
-            if (distance <= maxPreloadDistance && !isNeighborProblematic) {
-                // Preload adjacent videos (but not 8-9)
-                if (videoEl.dataset.src && !videoEl.src) {
-                    videoEl.src = videoEl.dataset.src;
-                    videoEl.load();
-                }
-                videoEl.muted = globalMuted;
-            } else if (distance > 2 || isNeighborProblematic) {
-                // Aggressively unload distant videos AND problematic ones
-                if (videoEl.src) {
-                    videoEl.pause();
-                    videoEl.src = '';
-                    videoEl.removeAttribute('src');
-                    videoEl.load();
-                }
+    // Handle nearby videos (preload neighbors only)
+    containers.forEach((container, index) => {
+        if (index === currentIndex) return;
+        
+        const videoEl = container.querySelector('video');
+        if (!videoEl) return;
+        
+        const distance = Math.abs(index - currentIndex);
+        
+        if (distance <= maxPreloadDistance) {
+            // Preload adjacent videos
+            if (videoEl.dataset.src && !videoEl.src) {
+                videoEl.src = videoEl.dataset.src;
+                videoEl.load();
             }
-        });
-    }
+            videoEl.muted = globalMuted;
+        } else if (distance > 2) {
+            // Aggressively unload distant videos
+            if (videoEl.src) {
+                videoEl.pause();
+                videoEl.src = '';
+                videoEl.removeAttribute('src');
+                videoEl.load();
+            }
+        }
+    });
     
     // Update memory label
     setTimeout(() => {
