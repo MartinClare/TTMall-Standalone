@@ -570,17 +570,55 @@ function playCurrentVideo() {
             // Play with error handling and retry logic
             const playPromise = currentVideoEl.play();
             if (playPromise !== undefined) {
-                playPromise.catch(e => {
-                    console.log(`Play error at video ${currentIndex}:`, e);
-                    // Retry with delay
-                    const retryDelay = 200;
-                    setTimeout(() => {
-                        ensureVideoLoaded();
-                        currentVideoEl.play().catch(err => {
-                            console.log(`Retry play error at video ${currentIndex}:`, err);
-                        });
-                    }, retryDelay);
-                });
+                playPromise
+                    .then(() => {
+                        // For videos 8-9, monitor if they get paused and auto-resume
+                        if (currentIndex === 8 || currentIndex === 9) {
+                            console.log(`[VIDEO ${currentIndex}] ✅ Started playing, monitoring for pauses...`);
+                            
+                            let checkCount = 0;
+                            const maxChecks = 20; // Monitor for 10 seconds (20 * 500ms)
+                            const pauseMonitor = setInterval(() => {
+                                checkCount++;
+                                
+                                if (currentVideoEl.paused && !currentVideoEl.ended) {
+                                    console.log(`[VIDEO ${currentIndex}] ⚠️ Detected pause, resuming...`);
+                                    currentVideoEl.play()
+                                        .then(() => {
+                                            console.log(`[VIDEO ${currentIndex}] ✅ Resumed successfully`);
+                                        })
+                                        .catch(err => {
+                                            console.error(`[VIDEO ${currentIndex}] ❌ Resume failed:`, err);
+                                        });
+                                }
+                                
+                                // Stop monitoring after max checks or if we've navigated away
+                                if (checkCount >= maxChecks || currentIndex !== (currentIndex)) {
+                                    clearInterval(pauseMonitor);
+                                }
+                            }, 500);
+                            
+                            // Also stop monitoring if user scrolls to different video
+                            const originalIndex = currentIndex;
+                            setTimeout(() => {
+                                if (originalIndex === currentIndex) {
+                                    clearInterval(pauseMonitor);
+                                    console.log(`[VIDEO ${currentIndex}] Monitoring complete`);
+                                }
+                            }, 10000);
+                        }
+                    })
+                    .catch(e => {
+                        console.log(`Play error at video ${currentIndex}:`, e);
+                        // Retry with delay
+                        const retryDelay = 200;
+                        setTimeout(() => {
+                            ensureVideoLoaded();
+                            currentVideoEl.play().catch(err => {
+                                console.log(`Retry play error at video ${currentIndex}:`, err);
+                            });
+                        }, retryDelay);
+                    });
             }
         };
         
