@@ -33,11 +33,12 @@ STEP 4: Add Volume (IMPORTANT!)
 2. Go to "Settings" tab
 3. Find "Volumes" section
 4. Click "+ New Volume"
-5. Mount path: /app/public/uploads
-6. Size: 1 GB
+5. Mount path: /app/public/videos
+6. Size: 1 GB (or larger if needed)
 7. Click "Add"
 
-⚠️ Without this, uploaded videos will disappear!
+⚠️ Without this, uploaded videos will disappear on redeploy!
+📝 Videos are stored in: public/videos/
 
 
 STEP 5: Get Your URL
@@ -56,8 +57,10 @@ STEP 5: Get Your URL
 
 Test it:
 - Browse videos
-- Upload a video
+- Upload a video file OR add a public URL
+- Edit video info (title, stats, live status)
 - Test shopping cart
+- Videos persist across restarts
 - Share the URL with friends!
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -77,7 +80,7 @@ Railway automatically redeploys! 🚀
 □ Login with GitHub
 □ Deploy from repo (TTMall-Standalone)
 □ Wait for build
-□ Add volume (/app/public/uploads)
+□ Add volume (/app/public/videos)
 □ Generate domain
 □ Test live app
 □ Share URL!

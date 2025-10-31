@@ -153,6 +153,66 @@
             cursor: not-allowed;
         }
 
+        .video-source-toggle {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+            padding: 15px;
+            background: #f8f9ff;
+            border-radius: 10px;
+        }
+
+        .toggle-option {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: white;
+        }
+
+        .toggle-option input[type="radio"] {
+            margin-right: 8px;
+        }
+
+        .toggle-option.active {
+            border-color: #667eea;
+            background: #f0f4ff;
+            font-weight: 600;
+        }
+
+        .video-url-input {
+            display: none;
+        }
+
+        .video-url-input.active {
+            display: block;
+        }
+
+        .video-url-input input[type="url"] {
+            padding: 16px 18px;
+            font-size: 16px;
+            min-height: 50px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .video-url-input small {
+            font-size: 13px;
+        }
+
+        .file-upload-section {
+            display: block;
+        }
+
+        .file-upload-section.hidden {
+            display: none;
+        }
+
         .progress-container {
             margin-top: 20px;
             display: none;
@@ -255,9 +315,23 @@
             </div>
 
             <div class="form-group">
+                <label>Video Source *</label>
+                <div class="video-source-toggle">
+                    <label class="toggle-option active" id="uploadToggle">
+                        <input type="radio" name="videoSource" value="file" checked>
+                        📁 Upload File
+                    </label>
+                    <label class="toggle-option" id="urlToggle">
+                        <input type="radio" name="videoSource" value="url">
+                        🔗 Public URL
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group file-upload-section" id="fileUploadSection">
                 <label>Video File *</label>
                 <div class="file-input-wrapper">
-                    <input type="file" id="videoFile" name="video" accept="video/*" required>
+                    <input type="file" id="videoFile" name="video" accept="video/*">
                     <label for="videoFile" class="file-input-label" id="fileLabel">
                         <div>
                             <div class="file-icon">🎥</div>
@@ -268,8 +342,14 @@
                 </div>
             </div>
 
+            <div class="form-group video-url-input" id="urlInputSection">
+                <label for="videoUrl">Video URL *</label>
+                <input type="url" id="videoUrl" name="videoUrl" placeholder="https://example.com/video.mp4">
+                <small style="display: block; margin-top: 5px; color: #666;">Enter a public URL to a video file</small>
+            </div>
+
             <button type="submit" class="upload-btn" id="uploadBtn">
-                Upload Video
+                Add Video
             </button>
         </form>
 
@@ -288,6 +368,7 @@
     <script>
         const form = document.getElementById('uploadForm');
         const videoFileInput = document.getElementById('videoFile');
+        const videoUrlInput = document.getElementById('videoUrl');
         const fileLabel = document.getElementById('fileLabel');
         const fileName = document.getElementById('fileName');
         const uploadBtn = document.getElementById('uploadBtn');
@@ -295,6 +376,35 @@
         const progressFill = document.getElementById('progressFill');
         const progressText = document.getElementById('progressText');
         const message = document.getElementById('message');
+        const fileUploadSection = document.getElementById('fileUploadSection');
+        const urlInputSection = document.getElementById('urlInputSection');
+        const uploadToggle = document.getElementById('uploadToggle');
+        const urlToggle = document.getElementById('urlToggle');
+
+        // Handle video source toggle
+        document.querySelectorAll('input[name="videoSource"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                if (e.target.value === 'file') {
+                    uploadToggle.classList.add('active');
+                    urlToggle.classList.remove('active');
+                    fileUploadSection.classList.remove('hidden');
+                    urlInputSection.classList.remove('active');
+                    videoFileInput.required = true;
+                    videoUrlInput.required = false;
+                    videoUrlInput.value = '';
+                } else {
+                    uploadToggle.classList.remove('active');
+                    urlToggle.classList.add('active');
+                    fileUploadSection.classList.add('hidden');
+                    urlInputSection.classList.add('active');
+                    videoFileInput.required = false;
+                    videoUrlInput.required = true;
+                    videoFileInput.value = '';
+                    fileName.textContent = '';
+                    fileLabel.classList.remove('has-file');
+                }
+            });
+        });
 
         // Handle file selection
         videoFileInput.addEventListener('change', (e) => {
@@ -312,75 +422,139 @@
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            const file = videoFileInput.files[0];
-            if (!file) {
-                showMessage('Please select a video file', 'error');
-                return;
-            }
+            const videoSource = document.querySelector('input[name="videoSource"]:checked').value;
+            const title = document.getElementById('title').value;
+            const description = document.getElementById('description').value;
 
-            // Validate file size
-            if (file.size > 100 * 1024 * 1024) {
-                showMessage('File size must be less than 100MB', 'error');
-                return;
-            }
+            if (videoSource === 'file') {
+                // File upload
+                const file = videoFileInput.files[0];
+                if (!file) {
+                    showMessage('Please select a video file', 'error');
+                    return;
+                }
 
-            const formData = new FormData();
-            formData.append('video', file);
-            formData.append('title', document.getElementById('title').value);
-            formData.append('description', document.getElementById('description').value);
+                // Validate file size
+                if (file.size > 100 * 1024 * 1024) {
+                    showMessage('File size must be less than 100MB', 'error');
+                    return;
+                }
 
-            try {
-                uploadBtn.disabled = true;
-                progressContainer.style.display = 'block';
-                message.style.display = 'none';
+                const formData = new FormData();
+                formData.append('video', file);
+                formData.append('title', title);
+                formData.append('description', description);
 
-                const xhr = new XMLHttpRequest();
+                try {
+                    uploadBtn.disabled = true;
+                    progressContainer.style.display = 'block';
+                    message.style.display = 'none';
 
-                // Track upload progress
-                xhr.upload.addEventListener('progress', (e) => {
-                    if (e.lengthComputable) {
-                        const percentComplete = (e.loaded / e.total) * 100;
-                        progressFill.style.width = percentComplete + '%';
-                        progressText.textContent = `Uploading... ${percentComplete.toFixed(0)}%`;
-                    }
-                });
+                    const xhr = new XMLHttpRequest();
 
-                xhr.addEventListener('load', () => {
-                    if (xhr.status === 200) {
-                        const response = JSON.parse(xhr.responseText);
-                        showMessage(`✅ ${response.message}! Video ID: ${response.video.id}`, 'success');
+                    // Track upload progress
+                    xhr.upload.addEventListener('progress', (e) => {
+                        if (e.lengthComputable) {
+                            const percentComplete = (e.loaded / e.total) * 100;
+                            progressFill.style.width = percentComplete + '%';
+                            progressText.textContent = `Uploading... ${percentComplete.toFixed(0)}%`;
+                        }
+                    });
+
+                    xhr.addEventListener('load', () => {
+                        if (xhr.status === 200) {
+                            const response = JSON.parse(xhr.responseText);
+                            showMessage(`✅ Video added successfully! Video ID: ${response.id}`, 'success');
+                            form.reset();
+                            fileName.textContent = '';
+                            fileLabel.classList.remove('has-file');
+                            
+                            // Redirect to home after 2 seconds
+                            setTimeout(() => {
+                                window.location.href = '/';
+                            }, 2000);
+                        } else {
+                            const error = JSON.parse(xhr.responseText);
+                            showMessage(`❌ Upload failed: ${error.error}`, 'error');
+                        }
+                        uploadBtn.disabled = false;
+                        progressContainer.style.display = 'none';
+                        progressFill.style.width = '0%';
+                    });
+
+                    xhr.addEventListener('error', () => {
+                        showMessage('❌ Network error occurred', 'error');
+                        uploadBtn.disabled = false;
+                        progressContainer.style.display = 'none';
+                        progressFill.style.width = '0%';
+                    });
+
+                    xhr.open('POST', '/api/videos/upload');
+                    xhr.send(formData);
+
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    showMessage('❌ Upload failed: ' + error.message, 'error');
+                    uploadBtn.disabled = false;
+                    progressContainer.style.display = 'none';
+                }
+            } else {
+                // URL-based video
+                const videoUrl = videoUrlInput.value.trim();
+                if (!videoUrl) {
+                    showMessage('Please enter a video URL', 'error');
+                    return;
+                }
+
+                // Validate URL format
+                try {
+                    new URL(videoUrl);
+                } catch (e) {
+                    showMessage('Please enter a valid URL', 'error');
+                    return;
+                }
+
+                try {
+                    uploadBtn.disabled = true;
+                    message.style.display = 'none';
+                    progressText.textContent = 'Adding video...';
+                    progressContainer.style.display = 'block';
+
+                    const response = await fetch('/api/videos/add-url', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            videoUrl,
+                            title,
+                            description
+                        })
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        showMessage(`✅ Video added successfully! Video ID: ${result.id}`, 'success');
                         form.reset();
-                        fileName.textContent = '';
-                        fileLabel.classList.remove('has-file');
+                        uploadToggle.classList.add('active');
+                        urlToggle.classList.remove('active');
+                        fileUploadSection.classList.remove('hidden');
+                        urlInputSection.classList.remove('active');
                         
-                        // Redirect to home after 2 seconds
                         setTimeout(() => {
                             window.location.href = '/';
                         }, 2000);
                     } else {
-                        const error = JSON.parse(xhr.responseText);
-                        showMessage(`❌ Upload failed: ${error.error}`, 'error');
+                        const error = await response.json();
+                        showMessage(`❌ Failed: ${error.error}`, 'error');
                     }
-                    uploadBtn.disabled = false;
-                    progressContainer.style.display = 'none';
-                    progressFill.style.width = '0%';
-                });
-
-                xhr.addEventListener('error', () => {
+                } catch (error) {
+                    console.error('Error:', error);
                     showMessage('❌ Network error occurred', 'error');
+                } finally {
                     uploadBtn.disabled = false;
                     progressContainer.style.display = 'none';
-                    progressFill.style.width = '0%';
-                });
-
-                xhr.open('POST', '/api/videos/upload');
-                xhr.send(formData);
-
-            } catch (error) {
-                console.error('Upload error:', error);
-                showMessage('❌ Upload failed: ' + error.message, 'error');
-                uploadBtn.disabled = false;
-                progressContainer.style.display = 'none';
+                }
             }
         });
 

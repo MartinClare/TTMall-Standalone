@@ -11,17 +11,10 @@ const __dirname = dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Video URL configuration
-// Use environment variable to switch between local VPN and public URLs
-const USE_VPN_VIDEOS = process.env.USE_VPN_VIDEOS === 'true';
-const VIDEO_BASE_URL = USE_VPN_VIDEOS 
-  ? 'http://vpn.axon.com.hk' 
-  : ''; // Empty string means serve from this server
-
 // Configure multer for video uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadDir = join(__dirname, 'public', 'uploads', 'videos');
+    const uploadDir = join(__dirname, 'public', 'videos');
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -62,154 +55,67 @@ app.use(express.static('public', {
 }));
 
 
-// Default videos
-function getDefaultVideos() {
-  return [
-  {
-    id: '1',
-    title: '✨ GRWM Morning Vibes',
-    description: 'Starting my day right 🌅 #morningroutine #aesthetic #grwm #dailyvlog',
-    videoUrl: `${VIDEO_BASE_URL}/videos/video1.mp4`,
-    thumbnailUrl: '',
-    viewCount: 12500,
-    likeCount: 890,
-    isLive: true
-  },
-  {
-    id: '2',
-    title: '🎧 Unboxing My New Earbuds!',
-    description: 'The sound quality is INSANE 😱 #unboxing #techreview #gadgets #musthave',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-    thumbnailUrl: 'https://via.placeholder.com/400x600/4ECDC4/white?text=Video+2',
-    viewCount: 8900,
-    likeCount: 650,
-    isLive: false
-  },
-  {
-    id: '3',
-    title: '⌚ My Smart Watch Changed Everything',
-    description: 'Game changer for fitness goals 💪 #smartwatch #fitness #tech #productreview',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-    thumbnailUrl: 'https://via.placeholder.com/400x600/95E1D3/white?text=Video+3',
-    viewCount: 15600,
-    likeCount: 1200,
-    isLive: false
-  },
-  {
-    id: '4',
-    title: '🎒 Perfect Backpack for Everything',
-    description: 'So many pockets! Travel ready ✈️ #backpack #travel #organization #essentials',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-    thumbnailUrl: 'https://via.placeholder.com/400x600/F38181/white?text=Video+4',
-    viewCount: 7800,
-    likeCount: 520,
-    isLive: false
-  },
-  {
-    id: '5',
-    title: '💆‍♀️ Skincare That Actually Works',
-    description: 'My skin has never been better! ✨ #skincare #beauty #glowup #selfcare',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-    thumbnailUrl: 'https://via.placeholder.com/400x600/AA96DA/white?text=Video+5',
-    viewCount: 11200,
-    likeCount: 980,
-    isLive: false
-  },
-  {
-    id: '6',
-    title: '🔥 This is a MUST HAVE',
-    description: 'Trust me on this one! 💯 #trending #viral #musthave #shopping',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
-    thumbnailUrl: 'https://via.placeholder.com/400x600/FFB6C1/white?text=Video+6',
-    viewCount: 9300,
-    likeCount: 720,
-    isLive: false
-  },
-  {
-    id: '7',
-    title: '💎 Found a Hidden Gem',
-    description: 'You need to see this! 😍 #hiddengem #discover #amazing #wow',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4',
-    thumbnailUrl: 'https://via.placeholder.com/400x600/87CEEB/white?text=Video+7',
-    viewCount: 10500,
-    likeCount: 850,
-    isLive: false
-  },
-  {
-    id: '8',
-    title: '🌟 Trending Right Now',
-    description: 'Everyone is getting this! 🛒 #trending #viral #popular #foryou',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
-    thumbnailUrl: 'https://via.placeholder.com/400x600/98FB98/white?text=Video+8',
-    viewCount: 8700,
-    likeCount: 690,
-    isLive: false
-  },
-  {
-    id: '9',
-    title: '👀 Wait Until You See This',
-    description: 'Mind = Blown 🤯 #mindblown #amazing #cool #satisfying',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
-    thumbnailUrl: 'https://via.placeholder.com/400x600/DDA0DD/white?text=Video+9',
-    viewCount: 12100,
-    likeCount: 940,
-    isLive: false
-  },
-  {
-    id: '10',
-    title: '💕 My Current Obsession',
-    description: 'Can\'t stop using this! 😊 #obsessed #favorite #love #recommendation',
-    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4',
-    thumbnailUrl: 'https://via.placeholder.com/400x600/F0E68C/white?text=Video+10',
-    viewCount: 11800,
-    likeCount: 900,
-    isLive: false
-  },
-  {
-    id: '11',
-    title: '🎬 Behind The Scenes',
-    description: 'Here\'s how it\'s done! 📸 #bts #behindthescenes #content #creator',
-    videoUrl: `${VIDEO_BASE_URL}/videos/video1.mp4`,
-    thumbnailUrl: 'https://via.placeholder.com/400x600/FFD700/white?text=Video+11',
-    viewCount: 15000,
-    likeCount: 1300,
-    isLive: false
-  }
-  ];
-}
-
 // Videos data file path
 const VIDEOS_DATA_FILE = join(__dirname, 'videos-data.json');
 
-// Load videos from file or use defaults
-function loadVideos() {
+// View tracking data file path
+const VIEWS_DATA_FILE = join(__dirname, 'views-data.json');
+
+// Get videos from videos-data.json file (always reads from disk)
+function getVideos() {
   try {
     if (fs.existsSync(VIDEOS_DATA_FILE)) {
       const data = fs.readFileSync(VIDEOS_DATA_FILE, 'utf8');
-      const savedVideos = JSON.parse(data);
-      console.log(`📂 Loaded ${savedVideos.length} videos from file`);
-      return savedVideos;
+      return JSON.parse(data);
+    } else {
+      return [];
     }
   } catch (error) {
     console.error('Error loading videos from file:', error);
+    return [];
   }
-  return getDefaultVideos();
 }
 
 // Save videos to file
-function saveVideos() {
+function saveVideos(videosArray) {
   try {
-    fs.writeFileSync(VIDEOS_DATA_FILE, JSON.stringify(videos, null, 2), 'utf8');
-    console.log(`💾 Saved ${videos.length} videos to file`);
+    fs.writeFileSync(VIDEOS_DATA_FILE, JSON.stringify(videosArray, null, 2), 'utf8');
+    console.log(`💾 Saved ${videosArray.length} videos to videos-data.json`);
   } catch (error) {
     console.error('Error saving videos to file:', error);
   }
 }
 
-// Initialize videos with default videos or loaded data
-let videos = loadVideos();
+// Get view tracking data (device-video mappings)
+function getViews() {
+  try {
+    if (fs.existsSync(VIEWS_DATA_FILE)) {
+      const data = fs.readFileSync(VIEWS_DATA_FILE, 'utf8');
+      return JSON.parse(data);
+    } else {
+      return {};
+    }
+  } catch (error) {
+    console.error('Error loading views from file:', error);
+    return {};
+  }
+}
 
-const products = [
+// Save view tracking data
+function saveViews(viewsData) {
+  try {
+    fs.writeFileSync(VIEWS_DATA_FILE, JSON.stringify(viewsData, null, 2), 'utf8');
+  } catch (error) {
+    console.error('Error saving views to file:', error);
+  }
+}
+
+// Products data file path
+const PRODUCTS_DATA_FILE = join(__dirname, 'products-data.json');
+
+// Default products
+function getDefaultProducts() {
+  return [
   {
     id: 'p1',
     videoId: '1',
@@ -261,6 +167,35 @@ const products = [
     stock: 120
   }
 ];
+}
+
+// Load products from file or use defaults
+function loadProducts() {
+  try {
+    if (fs.existsSync(PRODUCTS_DATA_FILE)) {
+      const data = fs.readFileSync(PRODUCTS_DATA_FILE, 'utf8');
+      const savedProducts = JSON.parse(data);
+      console.log(`📦 Loaded ${savedProducts.length} products from file`);
+      return savedProducts;
+    }
+  } catch (error) {
+    console.error('Error loading products from file:', error);
+  }
+  return getDefaultProducts();
+}
+
+// Save products to file
+function saveProducts() {
+  try {
+    fs.writeFileSync(PRODUCTS_DATA_FILE, JSON.stringify(products, null, 2), 'utf8');
+    console.log(`💾 Saved ${products.length} products to file`);
+  } catch (error) {
+    console.error('Error saving products to file:', error);
+  }
+}
+
+// Initialize products with default products or loaded data
+let products = loadProducts();
 
 // In-memory storage
 let cart = [];
@@ -268,10 +203,11 @@ let orders = [];
 
 // API Routes
 app.get('/api/videos', (req, res) => {
+  const videos = getVideos();
   res.json(videos);
 });
 
-// Upload video endpoint
+// Upload video endpoint (file upload)
 app.post('/api/videos/upload', upload.single('video'), (req, res) => {
   try {
     if (!req.file) {
@@ -279,7 +215,7 @@ app.post('/api/videos/upload', upload.single('video'), (req, res) => {
     }
 
     const { title, description, viewCount, likeCount, isLive } = req.body;
-    const videoUrl = `/uploads/videos/${req.file.filename}`;
+    const videoUrl = `/videos/${req.file.filename}`;
     
     const newVideo = {
       id: Date.now().toString(),
@@ -292,8 +228,10 @@ app.post('/api/videos/upload', upload.single('video'), (req, res) => {
       isLive: isLive === 'true' || isLive === true || false
     };
 
+    // Read from file, add new video, save back
+    const videos = getVideos();
     videos.push(newVideo);
-    saveVideos(); // Persist to file
+    saveVideos(videos); // Persist to file
     res.json(newVideo);
   } catch (error) {
     console.error('Upload error:', error);
@@ -301,8 +239,48 @@ app.post('/api/videos/upload', upload.single('video'), (req, res) => {
   }
 });
 
+// Add video with public URL endpoint
+app.post('/api/videos/add-url', (req, res) => {
+  try {
+    const { videoUrl, title, description, viewCount, likeCount, isLive } = req.body;
+    
+    if (!videoUrl || !videoUrl.trim()) {
+      return res.status(400).json({ error: 'Video URL is required' });
+    }
+
+    // Validate URL format
+    try {
+      new URL(videoUrl);
+    } catch (e) {
+      return res.status(400).json({ error: 'Invalid URL format' });
+    }
+    
+    const newVideo = {
+      id: Date.now().toString(),
+      title: title || 'Untitled Video',
+      description: description || '',
+      videoUrl: videoUrl.trim(),
+      thumbnailUrl: '',
+      viewCount: parseInt(viewCount) || 0,
+      likeCount: parseInt(likeCount) || 0,
+      isLive: isLive === 'true' || isLive === true || false
+    };
+
+    // Read from file, add new video, save back
+    const videos = getVideos();
+    videos.push(newVideo);
+    saveVideos(videos); // Persist to file
+    res.json(newVideo);
+  } catch (error) {
+    console.error('Add URL error:', error);
+    res.status(500).json({ error: 'Failed to add video' });
+  }
+});
+
 // Update video endpoint
 app.put('/api/videos/:id', (req, res) => {
+  // Read from file
+  const videos = getVideos();
   const video = videos.find(v => v.id === req.params.id);
   
   if (!video) {
@@ -316,12 +294,116 @@ app.put('/api/videos/:id', (req, res) => {
   if (likeCount !== undefined) video.likeCount = parseInt(likeCount);
   if (isLive !== undefined) video.isLive = isLive === 'true' || isLive === true;
 
-  saveVideos(); // Persist to file
+  saveVideos(videos); // Persist to file
   res.json(video);
+});
+
+// Like/Unlike video endpoint
+app.post('/api/videos/:id/like', (req, res) => {
+  // Read from file
+  const videos = getVideos();
+  const video = videos.find(v => v.id === req.params.id);
+  
+  if (!video) {
+    return res.status(404).json({ error: 'Video not found' });
+  }
+
+  const { action } = req.body; // 'like' or 'unlike'
+  
+  if (action === 'like') {
+    video.likeCount = (video.likeCount || 0) + 1;
+  } else if (action === 'unlike') {
+    video.likeCount = Math.max(0, (video.likeCount || 0) - 1);
+  }
+
+  saveVideos(videos); // Persist to file
+  res.json({ success: true, likeCount: video.likeCount });
+});
+
+// Track video view endpoint
+app.post('/api/videos/:id/view', (req, res) => {
+  const { deviceId } = req.body;
+  
+  if (!deviceId) {
+    return res.status(400).json({ error: 'Device ID is required' });
+  }
+
+  // Read from file
+  const videos = getVideos();
+  const video = videos.find(v => v.id === req.params.id);
+  
+  if (!video) {
+    return res.status(404).json({ error: 'Video not found' });
+  }
+
+  // Load view tracking data (structure: { videoId: { deviceId: { viewedAt } } })
+  const views = getViews();
+  const videoId = req.params.id;
+  
+  // Initialize video entry if it doesn't exist
+  if (!views[videoId]) {
+    views[videoId] = {};
+  }
+  
+  // Check if this device has already viewed this video
+  if (!views[videoId][deviceId]) {
+    // First view from this device - increment viewCount
+    video.viewCount = (video.viewCount || 0) + 1;
+    saveVideos(videos);
+    
+    // Mark this device as having viewed this video
+    views[videoId][deviceId] = {
+      viewedAt: new Date().toISOString()
+    };
+    saveViews(views);
+    
+    res.json({ 
+      success: true, 
+      viewCount: video.viewCount,
+      isNewView: true 
+    });
+  } else {
+    // Device has already viewed this video
+    res.json({ 
+      success: true, 
+      viewCount: video.viewCount,
+      isNewView: false 
+    });
+  }
+});
+
+// Check if device has viewed a video endpoint
+app.get('/api/videos/:id/view/:deviceId', (req, res) => {
+  const { id: videoId, deviceId } = req.params;
+  
+  // Load view tracking data (structure: { videoId: { deviceId: { viewedAt } } })
+  const views = getViews();
+  
+  // Check if this device has viewed this video
+  const hasViewed = !!(views[videoId] && views[videoId][deviceId]);
+  
+  if (hasViewed) {
+    res.json({
+      success: true,
+      hasViewed: true,
+      viewInfo: {
+        deviceId,
+        videoId,
+        ...views[videoId][deviceId]
+      }
+    });
+  } else {
+    res.json({
+      success: true,
+      hasViewed: false
+    });
+  }
 });
 
 // Delete video endpoint
 app.delete('/api/videos/:id', (req, res) => {
+  // Read from file
+  const videos = getVideos();
   const videoIndex = videos.findIndex(v => v.id === req.params.id);
   
   if (videoIndex === -1) {
@@ -330,22 +412,90 @@ app.delete('/api/videos/:id', (req, res) => {
 
   const video = videos[videoIndex];
   
-  // Delete file if it's an uploaded video
-  if (video.videoUrl.startsWith('/uploads/')) {
+  // Delete file if it's an uploaded video (local server file)
+  if (video.videoUrl.startsWith('/videos/') || video.videoUrl.startsWith('/uploads/')) {
     const filePath = join(__dirname, 'public', video.videoUrl);
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
   }
 
+  // Delete view tracking data for this video
+  const views = getViews();
+  if (views[req.params.id]) {
+    delete views[req.params.id];
+    saveViews(views);
+  }
+
   videos.splice(videoIndex, 1);
-  saveVideos(); // Persist to file
+  saveVideos(videos); // Persist to file
   res.json({ success: true, message: 'Video deleted successfully' });
 });
 
+// Get all products
+app.get('/api/products', (req, res) => {
+  res.json(products);
+});
+
+// Get products for a specific video
 app.get('/api/videos/:id/products', (req, res) => {
   const videoProducts = products.filter(p => p.videoId === req.params.id);
   res.json(videoProducts);
+});
+
+// Create new product
+app.post('/api/products', (req, res) => {
+  const { videoId, name, description, price, originalPrice, imageUrl, stock } = req.body;
+  
+  const newProduct = {
+    id: `p${Date.now()}`,
+    videoId,
+    name: name || 'New Product',
+    description: description || '',
+    price: parseInt(price) || 0,
+    originalPrice: parseInt(originalPrice) || 0,
+    imageUrl: imageUrl || '',
+    stock: parseInt(stock) || 0
+  };
+  
+  products.push(newProduct);
+  saveProducts(); // Persist to file
+  res.json(newProduct);
+});
+
+// Update product
+app.put('/api/products/:id', (req, res) => {
+  const product = products.find(p => p.id === req.params.id);
+  
+  if (!product) {
+    return res.status(404).json({ error: 'Product not found' });
+  }
+  
+  const { videoId, name, description, price, originalPrice, imageUrl, stock } = req.body;
+  
+  if (videoId !== undefined) product.videoId = videoId;
+  if (name !== undefined) product.name = name;
+  if (description !== undefined) product.description = description;
+  if (price !== undefined) product.price = parseInt(price);
+  if (originalPrice !== undefined) product.originalPrice = parseInt(originalPrice);
+  if (imageUrl !== undefined) product.imageUrl = imageUrl;
+  if (stock !== undefined) product.stock = parseInt(stock);
+  
+  saveProducts(); // Persist to file
+  res.json(product);
+});
+
+// Delete product
+app.delete('/api/products/:id', (req, res) => {
+  const productIndex = products.findIndex(p => p.id === req.params.id);
+  
+  if (productIndex === -1) {
+    return res.status(404).json({ error: 'Product not found' });
+  }
+  
+  products.splice(productIndex, 1);
+  saveProducts(); // Persist to file
+  res.json({ success: true, message: 'Product deleted successfully' });
 });
 
 app.get('/api/cart', (req, res) => {
@@ -440,10 +590,13 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => {
+  const videos = getVideos();
   console.log(`✅ Server running at http://localhost:${PORT}`);
   console.log(`📱 Open http://localhost:${PORT} in your browser`);
-  console.log(`📹 Loaded ${videos.length} default videos`);
+  console.log(`📹 Loaded ${videos.length} videos from videos-data.json`);
+  console.log(`📦 Loaded ${products.length} products`);
   console.log(`✅ Upload/Edit/Delete features are enabled`);
+  console.log(`💾 Videos: Always read/write from videos-data.json (no in-memory storage)`);
 });
 
 

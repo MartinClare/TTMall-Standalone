@@ -6,8 +6,9 @@ node_modules/
 .env.*.local
 
 # Keep video data and uploads tracked (not ignored)
-videos-data.json
-public/uploads/videos/
+# videos-data.json - TRACKED (removed from ignore)
+# products-data.json - TRACKED (removed from ignore)
+# public/uploads/videos/ - TRACKED (removed from ignore)
 
 
 

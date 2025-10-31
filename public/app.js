@@ -3,6 +3,14 @@ let videos = [];
 let currentIndex = 0;
 let cart = [];
 let products = [];
+let trackedVideoViews = new Set(); // Track which videos we've already tracked in this session
+
+// Device ID - unique identifier for this device
+let deviceId = localStorage.getItem('deviceId');
+if (!deviceId) {
+  deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  localStorage.setItem('deviceId', deviceId);
+}
 
 // Initialize
 async function init() {
@@ -30,13 +38,15 @@ async function init() {
 
 function renderVideos() {
     const container = document.getElementById('videos');
+    // Render all videos but use lazy loading to prevent memory issues
     container.innerHTML = videos.map((video, index) => `
         <div class="video-container" data-index="${index}" data-video-id="${video.id}">
             <video 
-                src="${video.videoUrl}" 
+                data-src="${video.videoUrl}" 
                 loop 
                 muted
                 playsinline
+                preload="none"
                 crossorigin="anonymous"
                 onerror="handleVideoError(this, ${index})"
             ></video>
@@ -77,6 +87,16 @@ function renderVideos() {
                         </div>
                         <div class="follow-icon" id="followIcon${index}">+</div>
                     </div>
+                </button>
+                
+                <!-- View Count -->
+                <button class="action-btn" data-action="views" style="cursor: default;">
+                    <div class="action-btn-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path fill="currentColor" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                        </svg>
+                    </div>
+                    <div class="action-btn-count">${formatCount(video.viewCount)}</div>
                 </button>
                 
                 <!-- Like -->
@@ -137,28 +157,58 @@ function formatCount(count) {
 // Scroll indicator removed for true TikTok style
 
 // Video interaction functions
-function likeVideo(index) {
+async function likeVideo(index) {
     const video = videos[index];
     const container = document.querySelector(`.video-container[data-index="${index}"]`);
     const likeBtn = container.querySelector('[data-action="like"]');
+    const isLiked = likeBtn.classList.contains('liked');
+    const action = isLiked ? 'unlike' : 'like';
     
-    if (likeBtn.classList.contains('liked')) {
-        // Unlike
-        video.likeCount = Math.max(0, (video.likeCount || 0) - 1);
-        likeBtn.classList.remove('liked');
-    } else {
-        // Like
-        video.likeCount = (video.likeCount || 0) + 1;
-        likeBtn.classList.add('liked');
-        
-        // Add animation
-        likeBtn.style.transform = 'scale(1.2)';
-        setTimeout(() => {
-            likeBtn.style.transform = '';
-        }, 200);
+    try {
+        // Call API to update like count in videos-data.json
+        const response = await fetch(`/api/videos/${video.id}/like`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ action })
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            
+            // Update local state
+            video.likeCount = result.likeCount;
+            
+            // Update UI
+            if (isLiked) {
+                likeBtn.classList.remove('liked');
+            } else {
+                likeBtn.classList.add('liked');
+                
+                // Add animation
+                likeBtn.style.transform = 'scale(1.2)';
+                setTimeout(() => {
+                    likeBtn.style.transform = '';
+                }, 200);
+            }
+            
+            likeBtn.querySelector('.action-btn-count').textContent = formatCount(video.likeCount);
+        } else {
+            console.error('Failed to update like count');
+        }
+    } catch (error) {
+        console.error('Error updating like:', error);
+        // Fallback: update UI locally even if API fails
+        if (isLiked) {
+            video.likeCount = Math.max(0, (video.likeCount || 0) - 1);
+            likeBtn.classList.remove('liked');
+        } else {
+            video.likeCount = (video.likeCount || 0) + 1;
+            likeBtn.classList.add('liked');
+        }
+        likeBtn.querySelector('.action-btn-count').textContent = formatCount(video.likeCount);
     }
-    
-    likeBtn.querySelector('.action-btn-count').textContent = formatCount(video.likeCount);
 }
 
 function commentVideo(index) {
@@ -187,6 +237,53 @@ function followCreator(index) {
     }
 }
 
+// Track video view when a new device views the video
+async function trackVideoView(videoId) {
+    if (!videoId) return;
+    
+    // Prevent duplicate tracking for the same video in this session
+    // (backend will handle device-based uniqueness)
+    const trackingKey = `${deviceId}:${videoId}`;
+    if (trackedVideoViews.has(trackingKey)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/videos/${videoId}/view`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ deviceId })
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            
+            // Mark as tracked for this session
+            trackedVideoViews.add(trackingKey);
+            
+            // Update local state
+            const video = videos.find(v => v.id === videoId);
+            if (video && result.viewCount !== undefined) {
+                video.viewCount = result.viewCount;
+                
+                // Update UI if this video is currently displayed
+                const container = document.querySelector(`.video-container[data-video-id="${videoId}"]`);
+                if (container) {
+                    const viewBtn = container.querySelector('[data-action="views"]');
+                    if (viewBtn) {
+                        viewBtn.querySelector('.action-btn-count').textContent = formatCount(video.viewCount);
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error tracking video view:', error);
+        // Silently fail - don't interrupt video playback
+    }
+}
+
 function setupScrollListener() {
     const videosContainer = document.getElementById('videos');
     let scrollTimeout;
@@ -209,6 +306,8 @@ function setupScrollListener() {
         
         scrollTimeout = setTimeout(() => {
             updateCurrentVideoIndex();
+            // Force cleanup of distant videos after scroll
+            cleanupDistantVideos();
         }, 150);
     });
     
@@ -216,6 +315,22 @@ function setupScrollListener() {
     setTimeout(() => {
         playCurrentVideo();
     }, 500);
+}
+
+// Cleanup videos that are far from current position to save memory
+function cleanupDistantVideos() {
+    const containers = document.querySelectorAll('.video-container');
+    containers.forEach((container, index) => {
+        const distance = Math.abs(index - currentIndex);
+        const videoEl = container.querySelector('video');
+        
+        // Unload videos more than 2 positions away
+        if (distance > 2 && videoEl && videoEl.src) {
+            videoEl.pause();
+            videoEl.src = '';
+            videoEl.load();
+        }
+    });
 }
 
 function updateCurrentVideoIndex() {
@@ -248,9 +363,36 @@ function playCurrentVideo() {
     const containers = document.querySelectorAll('.video-container');
     containers.forEach((container, index) => {
         const videoEl = container.querySelector('video');
+        const distance = Math.abs(index - currentIndex);
+        
         if (index === currentIndex) {
+            // Load and play current video
+            if (videoEl.dataset.src && !videoEl.src) {
+                videoEl.src = videoEl.dataset.src;
+                videoEl.load();
+            }
             videoEl.play().catch(e => console.log('Play error:', e));
+            
+            // Track video view when it starts playing
+            trackVideoView(videos[currentIndex]?.id);
+        } else if (distance <= 1) {
+            // Preload adjacent videos (next and previous)
+            if (videoEl.dataset.src && !videoEl.src) {
+                videoEl.src = videoEl.dataset.src;
+                videoEl.load();
+            }
+            videoEl.pause();
+            videoEl.currentTime = 0;
         } else {
+            // Unload distant videos to free memory (especially important on mobile)
+            if (distance > 2 && videoEl.src) {
+                videoEl.src = '';
+                videoEl.load();
+                // Force garbage collection hint on mobile
+                if (videoEl.removeAttribute) {
+                    videoEl.removeAttribute('src');
+                }
+            }
             videoEl.pause();
             videoEl.currentTime = 0;
         }
