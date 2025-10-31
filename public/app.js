@@ -349,9 +349,9 @@ function setupScrollListener() {
         
         scrollTimeout = setTimeout(() => {
             updateCurrentVideoIndex();
-            // Force cleanup of distant videos after scroll
+            // Force aggressive cleanup of distant videos after scroll (critical for Android)
             cleanupDistantVideos();
-        }, 150);
+        }, 100); // Reduced timeout for faster cleanup on Android
     });
     
     // Initial video play
@@ -363,17 +363,52 @@ function setupScrollListener() {
 // Cleanup videos that are far from current position to save memory
 function cleanupDistantVideos() {
     const containers = document.querySelectorAll('.video-container');
+    const maxDistance = 3; // Keep only 3 videos around current (prev, current, next)
+    
     containers.forEach((container, index) => {
         const distance = Math.abs(index - currentIndex);
         const videoEl = container.querySelector('video');
         
-        // Unload videos more than 2 positions away
-        if (distance > 2 && videoEl && videoEl.src) {
+        if (!videoEl) return;
+        
+        // More aggressive cleanup for Android - unload videos more than maxDistance away
+        if (distance > maxDistance) {
+            // Pause and reset
             videoEl.pause();
-            videoEl.src = '';
+            videoEl.currentTime = 0;
+            
+            // Remove src and clear video element completely
+            if (videoEl.src) {
+                videoEl.src = '';
+                videoEl.removeAttribute('src');
+            }
+            
+            // Clear the poster if any
+            if (videoEl.poster) {
+                videoEl.poster = '';
+            }
+            
+            // Force unload
             videoEl.load();
+            
+            // Clear video element from memory
+            try {
+                videoEl.removeAttribute('src');
+                videoEl.innerHTML = '';
+            } catch (e) {
+                console.log('Cleanup error:', e);
+            }
+        } else if (distance > 1) {
+            // For videos 2-3 positions away, just pause and reset time
+            videoEl.pause();
+            videoEl.currentTime = 0;
         }
     });
+    
+    // Force garbage collection hint on Android
+    if (window.gc && typeof window.gc === 'function') {
+        setTimeout(() => window.gc(), 100);
+    }
 }
 
 function updateCurrentVideoIndex() {
@@ -404,8 +439,32 @@ function updateCurrentVideoIndex() {
 
 function playCurrentVideo() {
     const containers = document.querySelectorAll('.video-container');
+    const maxPreloadDistance = 1; // Only preload immediate neighbors
+    
+    // First, aggressively cleanup distant videos
     containers.forEach((container, index) => {
         const videoEl = container.querySelector('video');
+        if (!videoEl) return;
+        
+        const distance = Math.abs(index - currentIndex);
+        
+        if (distance > 2) {
+            // Completely unload videos more than 2 away
+            videoEl.pause();
+            videoEl.currentTime = 0;
+            if (videoEl.src) {
+                videoEl.src = '';
+                videoEl.removeAttribute('src');
+                videoEl.load();
+            }
+        }
+    });
+    
+    // Then handle current and nearby videos
+    containers.forEach((container, index) => {
+        const videoEl = container.querySelector('video');
+        if (!videoEl) return;
+        
         const distance = Math.abs(index - currentIndex);
         
         if (index === currentIndex) {
@@ -416,15 +475,26 @@ function playCurrentVideo() {
             }
             // Apply global mute state to video
             videoEl.muted = globalMuted;
-            videoEl.play().catch(e => console.log('Play error:', e));
+            
+            // Play with error handling
+            const playPromise = videoEl.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(e => {
+                    console.log('Play error:', e);
+                    // Retry after a short delay
+                    setTimeout(() => {
+                        videoEl.play().catch(err => console.log('Retry play error:', err));
+                    }, 100);
+                });
+            }
             
             // Update sound button icon to reflect global state
             updateSoundButtonIcon();
             
             // Track video view when it starts playing
             trackVideoView(videos[currentIndex]?.id);
-        } else if (distance <= 1) {
-            // Preload adjacent videos (next and previous)
+        } else if (distance <= maxPreloadDistance) {
+            // Preload only immediate neighbors (previous and next)
             if (videoEl.dataset.src && !videoEl.src) {
                 videoEl.src = videoEl.dataset.src;
                 videoEl.load();
@@ -433,20 +503,13 @@ function playCurrentVideo() {
             videoEl.muted = globalMuted;
             videoEl.pause();
             videoEl.currentTime = 0;
-        } else {
-            // Unload distant videos to free memory (especially important on mobile)
-            if (distance > 2 && videoEl.src) {
-                videoEl.src = '';
-                videoEl.load();
-                // Force garbage collection hint on mobile
-                if (videoEl.removeAttribute) {
-                    videoEl.removeAttribute('src');
-                }
-            }
-            videoEl.pause();
-            videoEl.currentTime = 0;
         }
     });
+    
+    // Cleanup after a short delay to allow video to start playing
+    setTimeout(() => {
+        cleanupDistantVideos();
+    }, 200);
 }
 
 function scrollToVideo(index) {
