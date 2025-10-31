@@ -410,6 +410,23 @@ function updateCurrentVideoIndex() {
     // Clamp the index to prevent issues at boundaries
     newIndex = Math.max(0, Math.min(newIndex, videos.length - 1));
     
+    // SPECIAL: For videos 8-9, be more stable - prevent accidental navigation away
+    if (currentIndex === 8 || currentIndex === 9) {
+        // Only switch if we've moved significantly (more than 30% of screen)
+        const currentScroll = currentIndex * windowHeight;
+        const scrollDiff = Math.abs(scrollTop - currentScroll);
+        
+        if (scrollDiff < windowHeight * 0.3) {
+            // Still within 30% of current video - don't switch
+            return;
+        }
+        
+        // If moving away, allow it but log
+        if (newIndex !== currentIndex) {
+            console.log(`[VIDEO ${currentIndex}] Navigating away (scroll diff: ${scrollDiff.toFixed(0)}px)`);
+        }
+    }
+    
     if (newIndex !== currentIndex) {
         currentIndex = newIndex;
         playCurrentVideo();
@@ -572,6 +589,30 @@ function playCurrentVideo() {
             if (playPromise !== undefined) {
                 playPromise
                     .then(() => {
+                        // For videos 8-9, add automatic retry on first play to ensure it works
+                        if (currentIndex === 8 || currentIndex === 9) {
+                            // Check after 1 second if video is actually playing
+                            setTimeout(() => {
+                                if (currentVideoEl.paused || currentVideoEl.currentTime === 0) {
+                                    console.log(`[VIDEO ${currentIndex}] ⚠️ Video not playing after 1s, auto-retrying...`);
+                                    // Force refresh and retry
+                                    const savedTime = currentVideoEl.currentTime;
+                                    currentVideoEl.pause();
+                                    setTimeout(() => {
+                                        if (savedTime > 0) currentVideoEl.currentTime = savedTime;
+                                        currentVideoEl.muted = globalMuted;
+                                        currentVideoEl.play()
+                                            .then(() => {
+                                                console.log(`[VIDEO ${currentIndex}] ✅ Auto-retry successful`);
+                                            })
+                                            .catch(err => {
+                                                console.log(`[VIDEO ${currentIndex}] Auto-retry failed, will continue monitoring`);
+                                            });
+                                    }, 200);
+                                }
+                            }, 1000);
+                        }
+                        
                         // For videos 8-9, aggressive monitoring with detailed logging
                         if (currentIndex === 8 || currentIndex === 9) {
                             console.log(`[VIDEO ${currentIndex}] ✅ Started playing, aggressive monitoring...`);
@@ -687,10 +728,15 @@ function playCurrentVideo() {
                                     console.warn(`[VIDEO ${currentIndex}] ⚠️ NETWORK ERROR (no source)`);
                                 }
                                 
-                                // Stop if navigated away
-                                if (originalIndex !== currentIndex) {
+                                // Stop if navigated away (but only if we're not on 8-9 anymore)
+                                const currentVideoContainer = document.querySelectorAll('.video-container')[originalIndex];
+                                const stillOnVideo = currentVideoContainer && 
+                                                   parseInt(currentVideoContainer.getAttribute('data-index')) === originalIndex &&
+                                                   Math.abs(currentIndex - originalIndex) <= 1; // Allow small movement
+                                
+                                if (!stillOnVideo && currentIndex !== originalIndex && Math.abs(currentIndex - originalIndex) > 1) {
                                     clearInterval(pauseMonitor);
-                                    console.log(`[VIDEO ${originalIndex}] Monitoring stopped (navigated away)`);
+                                    console.log(`[VIDEO ${originalIndex}] Monitoring stopped (navigated to video ${currentIndex})`);
                                     return;
                                 }
                             }, 500);
