@@ -48,11 +48,33 @@ async function init() {
     }
 }
 
-function renderVideos() {
+// Virtual scrolling: only render a window of videos around current position
+function renderVideoWindow(centerIndex) {
     const container = document.getElementById('videos');
-    // Render all videos but use lazy loading to prevent memory issues
-    container.innerHTML = videos.map((video, index) => `
-        <div class="video-container" data-index="${index}" data-video-id="${video.id}">
+    const windowSize = 5; // Render current ±2 videos (total 5 videos max in DOM)
+    const startIndex = Math.max(0, centerIndex - 2);
+    const endIndex = Math.min(videos.length - 1, centerIndex + 2);
+    
+    // Set container height to accommodate all videos (for scrolling)
+    container.style.height = `${videos.length * window.innerHeight}px`;
+    
+    // Clear and render only the window
+    container.innerHTML = '';
+    
+    for (let index = startIndex; index <= endIndex; index++) {
+        const video = videos[index];
+        const videoEl = document.createElement('div');
+        videoEl.className = 'video-container';
+        videoEl.setAttribute('data-index', index);
+        videoEl.setAttribute('data-video-id', video.id);
+        // Position absolutely based on index
+        videoEl.style.position = 'absolute';
+        videoEl.style.top = `${index * window.innerHeight}px`;
+        videoEl.style.left = '0';
+        videoEl.style.width = '100vw';
+        videoEl.style.height = '100vh';
+        
+        videoEl.innerHTML = `
             <video 
                 data-src="${video.videoUrl}" 
                 loop 
@@ -152,7 +174,15 @@ function renderVideos() {
                 </button>
             </div>
         </div>
-    `).join('');
+        `;
+        
+        container.appendChild(videoEl);
+    }
+}
+
+function renderVideos() {
+    // Initial render at index 0
+    renderVideoWindow(0);
     
     setupScrollListener();
     setupNavigationControls();
@@ -368,65 +398,11 @@ function setupScrollListener() {
     }, 500);
 }
 
-// Cleanup videos that are far from current position to save memory
+// With virtual scrolling, cleanup is handled automatically by renderVideoWindow()
+// This function is kept for backwards compatibility but does minimal work
 function cleanupDistantVideos() {
-    const containers = document.querySelectorAll('.video-container');
-    const maxDistance = 3; // Keep only 3 videos around current (prev, current, next)
-    
-    // For videos 8-9, be even more conservative - keep more videos in memory
-    const keepDistance = (currentIndex === 8 || currentIndex === 9) ? 4 : maxDistance;
-    
-    containers.forEach((container, index) => {
-        // CRITICAL: Never cleanup the current video or immediate neighbors
-        if (index === currentIndex || Math.abs(index - currentIndex) <= 1) return;
-        
-        const distance = Math.abs(index - currentIndex);
-        const videoEl = container.querySelector('video');
-        
-        if (!videoEl) return;
-        
-        // More conservative cleanup - only unload videos more than keepDistance away
-        if (distance > keepDistance) {
-            // Pause and reset
-            videoEl.pause();
-            videoEl.currentTime = 0;
-            
-            // Remove src and clear video element completely
-            if (videoEl.src) {
-                videoEl.src = '';
-                videoEl.removeAttribute('src');
-            }
-            
-            // Clear the poster if any
-            if (videoEl.poster) {
-                videoEl.poster = '';
-            }
-            
-            // Force unload
-            videoEl.load();
-            
-            // Clear video element from memory
-            try {
-                videoEl.removeAttribute('src');
-                videoEl.innerHTML = '';
-            } catch (e) {
-                console.log('Cleanup error:', e);
-            }
-        } else if (distance > 2) {
-            // For videos 3-keepDistance positions away, just pause and reset time (don't unload)
-            videoEl.pause();
-            videoEl.currentTime = 0;
-            // Keep the src so it can reload faster if needed
-        }
-    });
-    
-    // Force garbage collection hint on Android (but less aggressively for videos 8-9)
-    if (window.gc && typeof window.gc === 'function') {
-        const gcDelay = (currentIndex === 8 || currentIndex === 9) ? 500 : 100;
-        setTimeout(() => window.gc(), gcDelay);
-    }
-    
-    // Update memory label after cleanup
+    // Virtual scrolling already ensures only 5 videos are in DOM at a time
+    // Just update memory label
     updateMemoryLabel();
 }
 
@@ -442,7 +418,14 @@ function updateCurrentVideoIndex() {
     newIndex = Math.max(0, Math.min(newIndex, videos.length - 1));
     
     if (newIndex !== currentIndex) {
+        const oldIndex = currentIndex;
         currentIndex = newIndex;
+        
+        // Re-render video window if we've moved far enough
+        if (Math.abs(newIndex - oldIndex) > 0) {
+            renderVideoWindow(currentIndex);
+        }
+        
         playCurrentVideo();
         
         // Snap to the correct position if we're close to boundaries
@@ -460,9 +443,21 @@ function playCurrentVideo() {
     const containers = document.querySelectorAll('.video-container');
     const maxPreloadDistance = 1; // Only preload immediate neighbors
     
-    // Never cleanup the current video - ensure it's always loaded
-    const currentVideoContainer = containers[currentIndex];
-    const currentVideoEl = currentVideoContainer?.querySelector('video');
+    // Find the container for current video by data-index (since we use virtual scrolling)
+    let currentVideoContainer = null;
+    let currentVideoEl = null;
+    
+    containers.forEach(container => {
+        if (parseInt(container.getAttribute('data-index')) === currentIndex) {
+            currentVideoContainer = container;
+            currentVideoEl = container.querySelector('video');
+        }
+    });
+    
+    if (!currentVideoContainer || !currentVideoEl) {
+        console.error(`Current video ${currentIndex} not found in DOM`);
+        return;
+    }
     
     // DON'T cleanup immediately - let current video load first
     // Only cleanup very distant videos that won't interfere
@@ -545,61 +540,35 @@ function playCurrentVideo() {
         }, viewTrackDelay);
     }
     
-    // Handle nearby videos (preload neighbors) - but with delay for videos 8-9
-    const preloadDelay = (currentIndex === 8 || currentIndex === 9) ? 300 : 0;
-    setTimeout(() => {
-        containers.forEach((container, index) => {
-            // Skip current video (already handled)
-            if (index === currentIndex) return;
-            
-            const videoEl = container.querySelector('video');
-            if (!videoEl) return;
-            
-            const distance = Math.abs(index - currentIndex);
-            
-            if (distance <= maxPreloadDistance) {
-                // Preload only immediate neighbors (previous and next)
-                if (videoEl.dataset.src && !videoEl.src) {
-                    videoEl.src = videoEl.dataset.src;
-                    videoEl.load();
-                }
-                // Apply global mute state to preloaded videos
-                videoEl.muted = globalMuted;
-                videoEl.pause();
-                videoEl.currentTime = 0;
-            }
-        });
-    }, preloadDelay);
-    
-    // Cleanup after longer delay to ensure current video is fully loaded and playing
-    // Much longer delay for videos 8-9 (9th and 10th videos)
-    const cleanupDelay = (currentIndex === 8 || currentIndex === 9) ? 2000 : 500;
-    setTimeout(() => {
-        cleanupDistantVideos();
-        updateMemoryLabel(); // Update memory info after cleanup
-    }, cleanupDelay);
-    
-    // Also cleanup very distant videos immediately (but not current or neighbors)
-    containers.forEach((container, index) => {
-        // Never cleanup current video or immediate neighbors
-        if (index === currentIndex || Math.abs(index - currentIndex) <= 2) return;
+    // Handle nearby videos (preload neighbors)
+    // With virtual scrolling, use data-index attribute to identify videos
+    containers.forEach((container) => {
+        const containerIndex = parseInt(container.getAttribute('data-index'));
+        if (containerIndex === currentIndex) return; // Skip current video
         
         const videoEl = container.querySelector('video');
         if (!videoEl) return;
         
-        const distance = Math.abs(index - currentIndex);
+        const distance = Math.abs(containerIndex - currentIndex);
         
-        // Only cleanup videos more than 4 positions away
-        if (distance > 4) {
-            videoEl.pause();
-            videoEl.currentTime = 0;
-            if (videoEl.src) {
-                videoEl.src = '';
-                videoEl.removeAttribute('src');
+        // Preload only immediate neighbors (previous and next)
+        if (distance <= maxPreloadDistance) {
+            if (videoEl.dataset.src && !videoEl.src) {
+                videoEl.src = videoEl.dataset.src;
                 videoEl.load();
             }
+            // Apply global mute state to preloaded videos
+            videoEl.muted = globalMuted;
+            videoEl.pause();
+            videoEl.currentTime = 0;
         }
     });
+    
+    // With virtual scrolling, cleanup is automatic (only 5 videos in DOM)
+    // Just update memory label
+    setTimeout(() => {
+        updateMemoryLabel();
+    }, 100);
 }
 
 function scrollToVideo(index) {
