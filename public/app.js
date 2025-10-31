@@ -357,8 +357,12 @@ function setupScrollListener() {
         
         scrollTimeout = setTimeout(() => {
             updateCurrentVideoIndex();
-            // Force aggressive cleanup of distant videos after scroll (critical for Android)
-            cleanupDistantVideos();
+            // Don't cleanup during/after scroll to problematic videos - let them load first
+            const scrollIndex = Math.round(videosContainer.scrollTop / window.innerHeight);
+            if (scrollIndex !== 8 && scrollIndex !== 9) {
+                // Force aggressive cleanup of distant videos after scroll (critical for Android)
+                cleanupDistantVideos();
+            }
         }, 100); // Reduced timeout for faster cleanup on Android
     });
     
@@ -425,6 +429,9 @@ function playCurrentVideo() {
     const containers = document.querySelectorAll('.video-container');
     const maxPreloadDistance = 1; // Only preload immediate neighbors
     
+    // Special handling for problematic videos 8-9
+    const isProblematicVideo = (currentIndex === 8 || currentIndex === 9);
+    
     // Get current video container
     const currentVideoContainer = containers[currentIndex];
     const currentVideoEl = currentVideoContainer?.querySelector('video');
@@ -434,6 +441,32 @@ function playCurrentVideo() {
         return;
     }
     
+    // For videos 8-9: COMPLETELY unload ALL other videos first to free maximum resources
+    if (isProblematicVideo) {
+        console.log(`Loading problematic video ${currentIndex}, clearing all others...`);
+        containers.forEach((container, index) => {
+            if (index !== currentIndex) {
+                const videoEl = container.querySelector('video');
+                if (videoEl && videoEl.src) {
+                    videoEl.pause();
+                    videoEl.currentTime = 0;
+                    videoEl.src = '';
+                    videoEl.removeAttribute('src');
+                    videoEl.load();
+                }
+            }
+        });
+        
+        // Wait a bit for resources to be fully freed
+        setTimeout(() => {
+            continueLoadingVideo();
+        }, 300);
+        return;
+    }
+    
+    continueLoadingVideo();
+    
+    function continueLoadingVideo() {
     // DON'T cleanup immediately - let current video load first
     // Only cleanup very distant videos that won't interfere
     
@@ -525,37 +558,43 @@ function playCurrentVideo() {
         }
     });
     
-    // Handle nearby videos (preload neighbors only)
-    containers.forEach((container, index) => {
-        if (index === currentIndex) return;
-        
-        const videoEl = container.querySelector('video');
-        if (!videoEl) return;
-        
-        const distance = Math.abs(index - currentIndex);
-        
-        if (distance <= maxPreloadDistance) {
-            // Preload adjacent videos
-            if (videoEl.dataset.src && !videoEl.src) {
-                videoEl.src = videoEl.dataset.src;
-                videoEl.load();
+    // Handle nearby videos - but SKIP if current is problematic video (no preloading for 8-9)
+    if (!isProblematicVideo) {
+        containers.forEach((container, index) => {
+            if (index === currentIndex) return;
+            
+            const videoEl = container.querySelector('video');
+            if (!videoEl) return;
+            
+            const distance = Math.abs(index - currentIndex);
+            
+            // Don't preload videos 8-9 when they're neighbors
+            const isNeighborProblematic = (index === 8 || index === 9);
+            
+            if (distance <= maxPreloadDistance && !isNeighborProblematic) {
+                // Preload adjacent videos (but not 8-9)
+                if (videoEl.dataset.src && !videoEl.src) {
+                    videoEl.src = videoEl.dataset.src;
+                    videoEl.load();
+                }
+                videoEl.muted = globalMuted;
+            } else if (distance > 2 || isNeighborProblematic) {
+                // Aggressively unload distant videos AND problematic ones
+                if (videoEl.src) {
+                    videoEl.pause();
+                    videoEl.src = '';
+                    videoEl.removeAttribute('src');
+                    videoEl.load();
+                }
             }
-            videoEl.muted = globalMuted;
-        } else if (distance > 2) {
-            // Aggressively unload distant videos
-            if (videoEl.src) {
-                videoEl.pause();
-                videoEl.src = '';
-                videoEl.removeAttribute('src');
-                videoEl.load();
-            }
-        }
-    });
+        });
+    }
     
     // Update memory label
     setTimeout(() => {
         updateMemoryLabel();
     }, 100);
+    }
 }
 
 function scrollToVideo(index) {
