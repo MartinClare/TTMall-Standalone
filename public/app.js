@@ -48,21 +48,15 @@ async function init() {
     }
 }
 
+// Track video element event listeners for proper cleanup
+const videoEventListeners = new Map();
+
 function renderVideos() {
     const container = document.getElementById('videos');
-    // Render all videos but with lazy loading
+    // Create container divs for all videos (for scrolling), but only render video elements for visible ones
     container.innerHTML = videos.map((video, index) => `
         <div class="video-container" data-index="${index}" data-video-id="${video.id}">
-            <video 
-                data-src="${video.videoUrl}" 
-                loop 
-                ${globalMuted ? 'muted' : ''}
-                playsinline
-                preload="none"
-                crossorigin="anonymous"
-                onerror="handleVideoError(this, ${index})"
-                data-video-index="${index}"
-            ></video>
+            <!-- Video element will be created dynamically when needed -->
             <div class="video-error" id="error${index}" style="display:none; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; color:#fff; background:rgba(0,0,0,0.8); padding:20px; border-radius:10px; z-index:5;">
                 <div style="font-size:40px; margin-bottom:10px;">⚠️</div>
                 <div>Video not available</div>
@@ -156,6 +150,75 @@ function renderVideos() {
     
     setupScrollListener();
     setupNavigationControls();
+    
+    // Initially render only first video
+    ensureVideoElement(0);
+}
+
+// Create video element only when needed
+function ensureVideoElement(index) {
+    if (index < 0 || index >= videos.length) return null;
+    
+    const container = document.querySelector(`.video-container[data-index="${index}"]`);
+    if (!container) return null;
+    
+    // Check if video element already exists
+    let videoEl = container.querySelector('video');
+    if (videoEl) return videoEl;
+    
+    // Create new video element
+    const video = videos[index];
+    videoEl = document.createElement('video');
+    videoEl.setAttribute('data-src', video.videoUrl);
+    videoEl.setAttribute('loop', '');
+    if (globalMuted) videoEl.setAttribute('muted', '');
+    videoEl.setAttribute('playsinline', '');
+    videoEl.setAttribute('preload', 'none');
+    videoEl.setAttribute('crossorigin', 'anonymous');
+    videoEl.setAttribute('data-video-index', index);
+    
+    // Add error handler
+    const errorHandler = (e) => handleVideoError(videoEl, index);
+    videoEl.addEventListener('error', errorHandler);
+    videoEventListeners.set(`video-${index}-error`, { element: videoEl, event: 'error', handler: errorHandler });
+    
+    container.appendChild(videoEl);
+    return videoEl;
+}
+
+// Remove video element and clean up properly
+function removeVideoElement(index) {
+    const container = document.querySelector(`.video-container[data-index="${index}"]`);
+    if (!container) return;
+    
+    const videoEl = container.querySelector('video');
+    if (!videoEl) return;
+    
+    // Remove all event listeners
+    const listenersToRemove = [];
+    videoEventListeners.forEach((data, key) => {
+        if (key.includes(`video-${index}-`)) {
+            data.element.removeEventListener(data.event, data.handler);
+            listenersToRemove.push(key);
+        }
+    });
+    listenersToRemove.forEach(key => videoEventListeners.delete(key));
+    
+    // Properly unload video
+    videoEl.pause();
+    videoEl.currentTime = 0;
+    videoEl.src = '';
+    videoEl.removeAttribute('src');
+    videoEl.removeAttribute('poster');
+    videoEl.load();
+    
+    // Clear innerHTML to remove any child nodes
+    videoEl.innerHTML = '';
+    
+    // Remove from DOM
+    videoEl.remove();
+    
+    console.log(`[CLEANUP] Removed video element ${index}`);
 }
 
 function formatCount(count) {
@@ -361,7 +424,7 @@ function setupScrollListener() {
             const scrollIndex = Math.round(videosContainer.scrollTop / window.innerHeight);
             if (scrollIndex !== 8 && scrollIndex !== 9) {
                 // Force aggressive cleanup of distant videos after scroll (critical for Android)
-                cleanupDistantVideos();
+            cleanupDistantVideos();
             }
         }, 100); // Reduced timeout for faster cleanup on Android
     });
@@ -389,9 +452,9 @@ function cleanupDistantVideos() {
             videoEl.pause();
             videoEl.currentTime = 0;
             if (videoEl.src) {
-                videoEl.src = '';
+            videoEl.src = '';
                 videoEl.removeAttribute('src');
-                videoEl.load();
+            videoEl.load();
             }
         }
     });
@@ -422,13 +485,18 @@ function updateCurrentVideoIndex() {
         }
         
         // If moving away, allow it but log
-        if (newIndex !== currentIndex) {
+    if (newIndex !== currentIndex) {
             console.log(`[VIDEO ${currentIndex}] Navigating away (scroll diff: ${scrollDiff.toFixed(0)}px)`);
         }
     }
     
     if (newIndex !== currentIndex) {
+        const oldIndex = currentIndex;
         currentIndex = newIndex;
+        
+        // Recycle video elements: only keep current ± 1
+        recycleVideoElements(currentIndex);
+        
         playCurrentVideo();
         
         // Snap to the correct position if we're close to boundaries
@@ -442,18 +510,35 @@ function updateCurrentVideoIndex() {
     }
 }
 
+// Recycle video elements - only keep current ± 1, remove others
+function recycleVideoElements(currentIndex) {
+    const keepRange = 1; // Keep current ± 1 (total 3 videos max)
+    const startKeep = Math.max(0, currentIndex - keepRange);
+    const endKeep = Math.min(videos.length - 1, currentIndex + keepRange);
+    
+    // Remove video elements outside the keep range
+    for (let i = 0; i < videos.length; i++) {
+        if (i < startKeep || i > endKeep) {
+            removeVideoElement(i);
+        } else {
+            // Ensure video element exists for videos in range
+            ensureVideoElement(i);
+        }
+    }
+    
+    console.log(`[RECYCLE] Keeping videos ${startKeep}-${endKeep}, removed others`);
+}
+
 async function playCurrentVideo() {
-    const containers = document.querySelectorAll('.video-container');
-    const maxPreloadDistance = 1; // Only preload immediate neighbors
+    // Ensure current video element exists
+    const currentVideoEl = ensureVideoElement(currentIndex);
     
-    // Get current video container
-    const currentVideoContainer = containers[currentIndex];
-    const currentVideoEl = currentVideoContainer?.querySelector('video');
-    
-    if (!currentVideoContainer || !currentVideoEl) {
+    if (!currentVideoEl) {
         console.error(`Current video ${currentIndex} not found`);
         return;
     }
+    
+    const currentVideoContainer = currentVideoEl.closest('.video-container');
     
     // REMOVED: Special handling for problematic videos 8-9 - testing normal behavior
     /*
@@ -655,20 +740,25 @@ async function playCurrentVideo() {
                                 return false;
                             };
                             
-                            // Intercept pause attempts (use capture phase to catch early)
-                            currentVideoEl.addEventListener('pause', preventPause, { capture: true, passive: false });
-                            currentVideoEl.addEventListener('suspend', preventPause, { capture: true, passive: false });
-                            
-                            // Also watch for 'waiting' event (buffering) - might precede pause
-                            currentVideoEl.addEventListener('waiting', (e) => {
-                                console.log(`[VIDEO ${currentIndex}] ⚠️ Waiting/buffering detected - preventing pause...`);
-                                // Preemptively ensure video stays playing
-                                if (currentVideoEl.paused) {
-                                    currentVideoEl.play().catch(err => {
-                                        console.error(`[VIDEO ${currentIndex}] Play after waiting failed:`, err);
-                                    });
-                                }
-                            }, { capture: true });
+            // Intercept pause attempts (use capture phase to catch early)
+            currentVideoEl.addEventListener('pause', preventPause, { capture: true, passive: false });
+            videoEventListeners.set(`video-${currentIndex}-pause`, { element: currentVideoEl, event: 'pause', handler: preventPause, options: { capture: true, passive: false } });
+            
+            currentVideoEl.addEventListener('suspend', preventPause, { capture: true, passive: false });
+            videoEventListeners.set(`video-${currentIndex}-suspend`, { element: currentVideoEl, event: 'suspend', handler: preventPause, options: { capture: true, passive: false } });
+            
+            // Also watch for 'waiting' event (buffering) - might precede pause
+            const waitingHandler = (e) => {
+                console.log(`[VIDEO ${currentIndex}] ⚠️ Waiting/buffering detected - preventing pause...`);
+                // Preemptively ensure video stays playing
+                if (currentVideoEl.paused) {
+                    currentVideoEl.play().catch(err => {
+                        console.error(`[VIDEO ${currentIndex}] Play after waiting failed:`, err);
+                    });
+                }
+            };
+            currentVideoEl.addEventListener('waiting', waitingHandler, { capture: true });
+            videoEventListeners.set(`video-${currentIndex}-waiting`, { element: currentVideoEl, event: 'waiting', handler: waitingHandler, options: { capture: true } });
                             
                             let lastTime = currentVideoEl.currentTime;
                             let lastLogTime = Date.now();
@@ -903,19 +993,38 @@ async function playCurrentVideo() {
                             }, 500);
                             
                             // Auto-stop after 20 seconds and clean up listeners
-                            setTimeout(() => {
+                            const cleanupListeners = () => {
                                 clearInterval(pauseMonitor);
-                                currentVideoEl.removeEventListener('pause', preventPause, { capture: true });
-                                currentVideoEl.removeEventListener('suspend', preventPause, { capture: true });
+                                const pauseKey = `video-${currentIndex}-pause`;
+                                const suspendKey = `video-${currentIndex}-suspend`;
+                                const waitingKey = `video-${currentIndex}-waiting`;
+                                
+                                if (videoEventListeners.has(pauseKey)) {
+                                    const data = videoEventListeners.get(pauseKey);
+                                    currentVideoEl.removeEventListener(data.event, data.handler, data.options);
+                                    videoEventListeners.delete(pauseKey);
+                                }
+                                if (videoEventListeners.has(suspendKey)) {
+                                    const data = videoEventListeners.get(suspendKey);
+                                    currentVideoEl.removeEventListener(data.event, data.handler, data.options);
+                                    videoEventListeners.delete(suspendKey);
+                                }
+                                if (videoEventListeners.has(waitingKey)) {
+                                    const data = videoEventListeners.get(waitingKey);
+                                    currentVideoEl.removeEventListener(data.event, data.handler, data.options);
+                                    videoEventListeners.delete(waitingKey);
+                                }
+                            };
+                            
+                            setTimeout(() => {
+                                cleanupListeners();
                                 console.log(`[VIDEO ${currentIndex}] Monitoring auto-stopped, listeners removed. Total pauses intercepted: ${pauseInterceptCount}`);
                             }, 20000);
                             
                             // Also clean up if navigated away
                             const cleanupOnNavigate = () => {
                                 if (currentIndex !== originalIndex) {
-                                    clearInterval(pauseMonitor);
-                                    currentVideoEl.removeEventListener('pause', preventPause, { capture: true });
-                                    currentVideoEl.removeEventListener('suspend', preventPause, { capture: true });
+                                    cleanupListeners();
                                 }
                             };
                             // Check every 2 seconds if we've navigated away
@@ -968,75 +1077,38 @@ async function playCurrentVideo() {
         trackVideoView(videos[currentIndex]?.id);
     }
     
-    // For videos 8-9: AGGRESSIVELY unload ALL other videos FIRST before loading
-    if (currentIndex === 8 || currentIndex === 9) {
-        console.log(`[VIDEO ${currentIndex}] Aggressively unloading ALL other videos before load...`);
-        document.querySelectorAll('video').forEach((video) => {
-            const container = video.closest('.video-container');
-            const idx = container ? parseInt(container.getAttribute('data-index')) : -1;
-            if (idx !== currentIndex) {
-                video.pause();
-                video.currentTime = 0;
-                if (video.src) {
-                    video.src = '';
-                    video.removeAttribute('src');
-                    video.load();
+    // Pause all other videos (only current ± 1 exist in DOM due to recycling)
+    const keepRange = 1;
+    for (let i = Math.max(0, currentIndex - keepRange); i <= Math.min(videos.length - 1, currentIndex + keepRange); i++) {
+        if (i === currentIndex) continue;
+        
+        const videoEl = document.querySelector(`.video-container[data-index="${i}"] video`);
+        if (videoEl) {
+            videoEl.pause();
+            videoEl.currentTime = 0;
+            
+            // For videos 8-9: completely unload neighbors
+            if (currentIndex === 8 || currentIndex === 9) {
+                if (videoEl.src) {
+                videoEl.src = '';
+                    videoEl.removeAttribute('src');
+                    videoEl.load();
                 }
             }
-        });
-        // Wait a moment for Android to free decoder resources
-        await new Promise(resolve => setTimeout(resolve, 200));
-    } else {
-        // For other videos, just pause
-        containers.forEach((container, index) => {
-            if (index !== currentIndex) {
-                const videoEl = container.querySelector('video');
-                if (videoEl) {
-                    videoEl.pause();
-                }
-            }
-        });
+        }
     }
     
-    // Handle nearby videos (preload neighbors only)
-    // SPECIAL: Don't preload videos 8-9 - they cause decoder issues
-    containers.forEach((container, index) => {
-        if (index === currentIndex) return;
-        
-        const videoEl = container.querySelector('video');
-        if (!videoEl) return;
-        
-        // Never preload videos 8-9 - they need all decoder resources
-        if (index === 8 || index === 9) {
-            // Unload if loaded
-            if (videoEl.src) {
-                videoEl.pause();
-                videoEl.src = '';
-                videoEl.removeAttribute('src');
-                videoEl.load();
-            }
-            return;
-        }
-        
-        const distance = Math.abs(index - currentIndex);
-        
-        if (distance <= maxPreloadDistance) {
-            // Preload adjacent videos (but not 8-9)
-            if (videoEl.dataset.src && !videoEl.src) {
-                videoEl.src = videoEl.dataset.src;
-                videoEl.load();
-            }
-            videoEl.muted = globalMuted;
-        } else if (distance > 2) {
-            // Aggressively unload distant videos
-            if (videoEl.src) {
-                videoEl.pause();
-                videoEl.src = '';
-                videoEl.removeAttribute('src');
-                videoEl.load();
+    // For videos 8-9: Remove even neighbors from DOM completely
+    if (currentIndex === 8 || currentIndex === 9) {
+        console.log(`[VIDEO ${currentIndex}] Removing all neighbors from DOM for maximum resources...`);
+        for (let i = Math.max(0, currentIndex - keepRange); i <= Math.min(videos.length - 1, currentIndex + keepRange); i++) {
+            if (i !== currentIndex) {
+                removeVideoElement(i);
             }
         }
-    });
+        // Wait for cleanup
+        await new Promise(resolve => setTimeout(resolve, 200));
+    }
     
     // Update memory label
     setTimeout(() => {
