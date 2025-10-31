@@ -677,6 +677,20 @@ function playCurrentVideo() {
                     .then(() => {
                         if (isProblematicVideo) {
                             console.log(`[VIDEO ${currentIndex}] ✅ Successfully started playing`);
+                            
+                            // Monitor playback to detect freezes
+                            const monitorInterval = setInterval(() => {
+                                if (currentVideoEl.paused || currentVideoEl.ended) {
+                                    console.warn(`[VIDEO ${currentIndex}] ⚠️ Video paused/ended! Attempting resume...`);
+                                    if (!currentVideoEl.ended) {
+                                        currentVideoEl.play().catch(err => {
+                                            console.error(`[VIDEO ${currentIndex}] Resume failed:`, err);
+                                        });
+                                    }
+                                }
+                            }, 500);
+                            
+                            setTimeout(() => clearInterval(monitorInterval), 10000);
                         }
                     })
                     .catch(e => {
@@ -709,6 +723,34 @@ function playCurrentVideo() {
                     playPromise
                         .then(() => {
                             console.log(`[VIDEO ${currentIndex}] ✅ Successfully started playing (readyState 4)`);
+                            
+                            // Monitor playback state to detect if it freezes
+                            if (isProblematicVideo) {
+                                const monitorInterval = setInterval(() => {
+                                    if (currentVideoEl.paused || currentVideoEl.ended) {
+                                        console.warn(`[VIDEO ${currentIndex}] ⚠️ Video paused/ended unexpectedly! Paused: ${currentVideoEl.paused}, Ended: ${currentVideoEl.ended}`);
+                                        
+                                        // Try to resume
+                                        if (!currentVideoEl.ended) {
+                                            console.log(`[VIDEO ${currentIndex}] Attempting to resume...`);
+                                            currentVideoEl.play().catch(err => {
+                                                console.error(`[VIDEO ${currentIndex}] ❌ Resume failed:`, err);
+                                            });
+                                        }
+                                    } else if (currentVideoEl.readyState >= 4) {
+                                        // Video is playing and ready - stop monitoring after 3 seconds
+                                        setTimeout(() => {
+                                            clearInterval(monitorInterval);
+                                            console.log(`[VIDEO ${currentIndex}] ✅ Playback stable, stopping monitor`);
+                                        }, 3000);
+                                    }
+                                }, 500); // Check every 500ms
+                                
+                                // Stop monitoring after 10 seconds or when navigating away
+                                setTimeout(() => {
+                                    clearInterval(monitorInterval);
+                                }, 10000);
+                            }
                         })
                         .catch(e => {
                             console.error(`[VIDEO ${currentIndex}] ❌ Play failed despite readyState 4:`, e);
