@@ -617,6 +617,22 @@ function playCurrentVideo() {
                         if (currentIndex === 8 || currentIndex === 9) {
                             console.log(`[VIDEO ${currentIndex}] ✅ Started playing, aggressive monitoring...`);
                             
+                            // Prevent pause events from being handled
+                            const preventPause = (e) => {
+                                console.log(`[VIDEO ${currentIndex}] ⚠️ Pause event intercepted! Preventing...`);
+                                e.preventDefault();
+                                e.stopPropagation();
+                                // Force play immediately
+                                currentVideoEl.play().catch(err => {
+                                    console.error(`[VIDEO ${currentIndex}] Auto-play after prevent failed:`, err);
+                                });
+                                return false;
+                            };
+                            
+                            // Intercept pause attempts
+                            currentVideoEl.addEventListener('pause', preventPause, true);
+                            currentVideoEl.addEventListener('suspend', preventPause, true);
+                            
                             let lastTime = currentVideoEl.currentTime;
                             let lastLogTime = Date.now();
                             let checkCount = 0;
@@ -638,15 +654,51 @@ function playCurrentVideo() {
                                         videoHeight: currentVideoEl.videoHeight,
                                         buffered: currentVideoEl.buffered.length > 0 ? `${currentVideoEl.buffered.start(0).toFixed(1)}-${currentVideoEl.buffered.end(0).toFixed(1)}` : 'none'
                                     };
+                                    // Count how many videos are actually loaded (decoder pressure)
+                                    const loadedVideos = Array.from(document.querySelectorAll('video'))
+                                        .filter(v => v.src && v.src !== '').length;
+                                    const playingVideos = Array.from(document.querySelectorAll('video'))
+                                        .filter(v => !v.paused && !v.ended && v.currentTime > 0).length;
+                                    
                                     console.log(`[VIDEO ${currentIndex}] Check #${checkCount}:`, 
                                         `Time=${state.currentTime}s`, 
                                         `Paused=${state.paused}`, 
-                                        `ReadyState=${state.readyState}`, 
-                                        `Network=${state.networkState}`,
-                                        `Buffered=${state.buffered}`,
-                                        `Size=${state.videoWidth}x${state.videoHeight}`
+                                        `ReadyState=${state.readyState}`,
+                                        `LoadedVideos=${loadedVideos}`,
+                                        `PlayingVideos=${playingVideos}`,
+                                        `Buffered=${state.buffered}`
                                     );
                                     console.log(`[VIDEO ${currentIndex}] Full state:`, state);
+                                    
+                                    // Memory pressure warning and auto-cleanup
+                                    if (loadedVideos > 1) {
+                                        console.warn(`[VIDEO ${currentIndex}] ⚠️ HIGH MEMORY: ${loadedVideos} videos loaded! Cleaning up...`);
+                                        // Aggressively unload ALL other videos
+                                        document.querySelectorAll('video').forEach((video) => {
+                                            const container = video.closest('.video-container');
+                                            const idx = container ? parseInt(container.getAttribute('data-index')) : -1;
+                                            if (idx !== currentIndex && video.src) {
+                                                console.log(`[VIDEO ${currentIndex}] Unloading video ${idx} to free memory...`);
+                                                video.pause();
+                                                video.currentTime = 0;
+                                                video.src = '';
+                                                video.removeAttribute('src');
+                                                video.load();
+                                            }
+                                        });
+                                    }
+                                    if (playingVideos > 1) {
+                                        console.warn(`[VIDEO ${currentIndex}] ⚠️ DECODER PRESSURE: ${playingVideos} videos playing! Pausing others...`);
+                                        // Pause ALL other playing videos
+                                        document.querySelectorAll('video').forEach((video) => {
+                                            const container = video.closest('.video-container');
+                                            const idx = container ? parseInt(container.getAttribute('data-index')) : -1;
+                                            if (idx !== currentIndex && !video.paused && !video.ended) {
+                                                console.log(`[VIDEO ${currentIndex}] Pausing video ${idx}...`);
+                                                video.pause();
+                                            }
+                                        });
+                                    }
                                     
                                     // Check if video is visible (not rendering issue)
                                     const rect = currentVideoEl.getBoundingClientRect();
@@ -667,14 +719,44 @@ function playCurrentVideo() {
                                 
                                 // Check if paused
                                 if (currentVideoEl.paused && !currentVideoEl.ended) {
-                                    console.warn(`[VIDEO ${currentIndex}] ⚠️ PAUSED detected! Resuming...`);
-                                    currentVideoEl.play()
-                                        .then(() => {
-                                            console.log(`[VIDEO ${currentIndex}] ✅ Resumed successfully`);
-                                        })
-                                        .catch(err => {
-                                            console.error(`[VIDEO ${currentIndex}] ❌ Resume failed:`, err);
-                                        });
+                                    console.warn(`[VIDEO ${currentIndex}] ⚠️ PAUSED detected! Clearing other videos before resume...`);
+                                    
+                                    // Aggressively unload ALL other videos before resume attempt
+                                    document.querySelectorAll('video').forEach((video) => {
+                                        const container = video.closest('.video-container');
+                                        const idx = container ? parseInt(container.getAttribute('data-index')) : -1;
+                                        if (idx !== currentIndex && video.src) {
+                                            video.pause();
+                                            video.currentTime = 0;
+                                            video.src = '';
+                                            video.removeAttribute('src');
+                                            video.load();
+                                        }
+                                    });
+                                    
+                                    // Wait a bit for decoder to free
+                                    setTimeout(() => {
+                                        console.log(`[VIDEO ${currentIndex}] Attempting resume after cleanup...`);
+                                        // Ensure source is still set
+                                        if (!currentVideoEl.src && currentVideoEl.dataset.src) {
+                                            currentVideoEl.src = currentVideoEl.dataset.src;
+                                        }
+                                        currentVideoEl.muted = globalMuted;
+                                        currentVideoEl.play()
+                                            .then(() => {
+                                                console.log(`[VIDEO ${currentIndex}] ✅ Resumed successfully`);
+                                            })
+                                            .catch(err => {
+                                                console.error(`[VIDEO ${currentIndex}] ❌ Resume failed:`, err);
+                                                // Try one more time after longer delay
+                                                setTimeout(() => {
+                                                    console.log(`[VIDEO ${currentIndex}] Final resume attempt...`);
+                                                    currentVideoEl.play().catch(finalErr => {
+                                                        console.error(`[VIDEO ${currentIndex}] ❌ Final resume also failed:`, finalErr);
+                                                    });
+                                                }, 500);
+                                            });
+                                    }, 300);
                                 }
                                 
                                 // Check if video time is stuck OR if time advancing but visually frozen
@@ -702,22 +784,64 @@ function playCurrentVideo() {
                                     } else if (timeDiff < 0.05) { // Less than 50ms progress in 500ms = stuck
                                         console.warn(`[VIDEO ${currentIndex}] ⚠️ TIME STUCK at ${currentTime.toFixed(2)}s (diff: ${timeDiff.toFixed(3)}s)`);
                                         
-                                        // Aggressive unstick: pause, seek, play
-                                        currentVideoEl.pause();
-                                        const savedTime = currentTime;
-                                        setTimeout(() => {
-                                            console.log(`[VIDEO ${currentIndex}] Attempting unstick: seeking to ${savedTime.toFixed(2)}s and playing...`);
-                                            currentVideoEl.currentTime = savedTime;
-                                            currentVideoEl.muted = globalMuted;
-                                            currentVideoEl.play()
-                                                .then(() => {
-                                                    console.log(`[VIDEO ${currentIndex}] ✅ Unstick successful`);
-                                                    lastTime = currentVideoEl.currentTime;
-                                                })
-                                                .catch(err => {
-                                                    console.error(`[VIDEO ${currentIndex}] ❌ Unstick failed:`, err);
-                                                });
-                                        }, 100);
+                                        // For early freeze (< 1s), reload video element completely
+                                        if (currentTime < 1.0) {
+                                            console.warn(`[VIDEO ${currentIndex}] ⚠️ Early freeze detected! Reloading video element...`);
+                                            
+                                            // Unload ALL other videos first
+                                            document.querySelectorAll('video').forEach((video) => {
+                                                const container = video.closest('.video-container');
+                                                const idx = container ? parseInt(container.getAttribute('data-index')) : -1;
+                                                if (idx !== currentIndex && video.src) {
+                                                    video.pause();
+                                                    video.src = '';
+                                                    video.removeAttribute('src');
+                                                    video.load();
+                                                }
+                                            });
+                                            
+                                            // Reload current video from scratch
+                                            const videoSrc = currentVideoEl.dataset.src;
+                                            currentVideoEl.pause();
+                                            currentVideoEl.src = '';
+                                            currentVideoEl.removeAttribute('src');
+                                            
+                                            setTimeout(() => {
+                                                console.log(`[VIDEO ${currentIndex}] Reloading video from start...`);
+                                                currentVideoEl.src = videoSrc;
+                                                currentVideoEl.load();
+                                                currentVideoEl.muted = globalMuted;
+                                                
+                                                currentVideoEl.addEventListener('canplay', () => {
+                                                    console.log(`[VIDEO ${currentIndex}] Reloaded video ready, playing...`);
+                                                    currentVideoEl.play()
+                                                        .then(() => {
+                                                            console.log(`[VIDEO ${currentIndex}] ✅ Reloaded video playing successfully`);
+                                                            lastTime = 0; // Reset tracker
+                                                        })
+                                                        .catch(err => {
+                                                            console.error(`[VIDEO ${currentIndex}] ❌ Reloaded video play failed:`, err);
+                                                        });
+                                                }, { once: true });
+                                            }, 500);
+                                        } else {
+                                            // Normal unstick: pause, seek, play
+                                            currentVideoEl.pause();
+                                            const savedTime = currentTime;
+                                            setTimeout(() => {
+                                                console.log(`[VIDEO ${currentIndex}] Attempting unstick: seeking to ${savedTime.toFixed(2)}s and playing...`);
+                                                currentVideoEl.currentTime = savedTime;
+                                                currentVideoEl.muted = globalMuted;
+                                                currentVideoEl.play()
+                                                    .then(() => {
+                                                        console.log(`[VIDEO ${currentIndex}] ✅ Unstick successful`);
+                                                        lastTime = currentVideoEl.currentTime;
+                                                    })
+                                                    .catch(err => {
+                                                        console.error(`[VIDEO ${currentIndex}] ❌ Unstick failed:`, err);
+                                                    });
+                                            }, 100);
+                                        }
                                     } else {
                                         lastTime = currentTime;
                                     }
@@ -741,11 +865,29 @@ function playCurrentVideo() {
                                 }
                             }, 500);
                             
-                            // Auto-stop after 20 seconds
+                            // Auto-stop after 20 seconds and clean up listeners
                             setTimeout(() => {
                                 clearInterval(pauseMonitor);
-                                console.log(`[VIDEO ${currentIndex}] Monitoring auto-stopped`);
+                                currentVideoEl.removeEventListener('pause', preventPause, true);
+                                currentVideoEl.removeEventListener('suspend', preventPause, true);
+                                console.log(`[VIDEO ${currentIndex}] Monitoring auto-stopped, listeners removed`);
                             }, 20000);
+                            
+                            // Also clean up if navigated away
+                            const cleanupOnNavigate = () => {
+                                if (currentIndex !== originalIndex) {
+                                    clearInterval(pauseMonitor);
+                                    currentVideoEl.removeEventListener('pause', preventPause, true);
+                                    currentVideoEl.removeEventListener('suspend', preventPause, true);
+                                }
+                            };
+                            // Check every 2 seconds if we've navigated away
+                            const navCheck = setInterval(() => {
+                                if (currentIndex !== originalIndex) {
+                                    cleanupOnNavigate();
+                                    clearInterval(navCheck);
+                                }
+                            }, 2000);
                         }
                     })
                     .catch(e => {
