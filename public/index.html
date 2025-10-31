@@ -39,7 +39,7 @@
             overflow: hidden;
         }
 
-        /* Videos Wrapper - Virtual Scrolling Container */
+        /* Videos Wrapper */
         #videos {
             height: 100vh;
             overflow-y: scroll;
@@ -51,23 +51,21 @@
             -webkit-overflow-scrolling: auto; /* Disable momentum for better control */
             touch-action: pan-y; /* Only allow vertical panning */
             position: relative;
-            /* Virtual scrolling: container will have dynamic height */
         }
 
         #videos::-webkit-scrollbar {
             display: none; /* Chrome, Safari */
         }
 
-        /* Video Container - Each is absolutely positioned for virtual scrolling */
+        /* Video Container - Each is an independent full-screen unit */
         .video-container {
             width: 100vw;
             height: 100vh;
-            position: absolute;
+            position: relative;
             scroll-snap-align: start;
             scroll-snap-stop: always;
             background: #000;
             overflow: hidden;
-            /* top, left set via JS for virtual scrolling */
         }
 
         video {
