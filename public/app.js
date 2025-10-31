@@ -618,20 +618,57 @@ function playCurrentVideo() {
                             console.log(`[VIDEO ${currentIndex}] ✅ Started playing, aggressive monitoring...`);
                             
                             // Prevent pause events from being handled
+                            let pauseInterceptCount = 0;
                             const preventPause = (e) => {
-                                console.log(`[VIDEO ${currentIndex}] ⚠️ Pause event intercepted! Preventing...`);
+                                pauseInterceptCount++;
+                                console.log(`[VIDEO ${currentIndex}] ⚠️ Pause event #${pauseInterceptCount} intercepted! Preventing and forcing play...`);
                                 e.preventDefault();
                                 e.stopPropagation();
-                                // Force play immediately
-                                currentVideoEl.play().catch(err => {
-                                    console.error(`[VIDEO ${currentIndex}] Auto-play after prevent failed:`, err);
+                                
+                                // Clear all other videos first to free resources
+                                document.querySelectorAll('video').forEach((video) => {
+                                    const container = video.closest('.video-container');
+                                    const idx = container ? parseInt(container.getAttribute('data-index')) : -1;
+                                    if (idx !== currentIndex && video.src) {
+                                        video.pause();
+                                        video.src = '';
+                                        video.removeAttribute('src');
+                                        video.load();
+                                    }
                                 });
+                                
+                                // Force play immediately after cleanup
+                                setTimeout(() => {
+                                    if (!currentVideoEl.src && currentVideoEl.dataset.src) {
+                                        currentVideoEl.src = currentVideoEl.dataset.src;
+                                    }
+                                    currentVideoEl.muted = globalMuted;
+                                    currentVideoEl.play()
+                                        .then(() => {
+                                            console.log(`[VIDEO ${currentIndex}] ✅ Auto-play after intercept successful`);
+                                        })
+                                        .catch(err => {
+                                            console.error(`[VIDEO ${currentIndex}] ❌ Auto-play after intercept failed:`, err);
+                                        });
+                                }, 100);
+                                
                                 return false;
                             };
                             
-                            // Intercept pause attempts
-                            currentVideoEl.addEventListener('pause', preventPause, true);
-                            currentVideoEl.addEventListener('suspend', preventPause, true);
+                            // Intercept pause attempts (use capture phase to catch early)
+                            currentVideoEl.addEventListener('pause', preventPause, { capture: true, passive: false });
+                            currentVideoEl.addEventListener('suspend', preventPause, { capture: true, passive: false });
+                            
+                            // Also watch for 'waiting' event (buffering) - might precede pause
+                            currentVideoEl.addEventListener('waiting', (e) => {
+                                console.log(`[VIDEO ${currentIndex}] ⚠️ Waiting/buffering detected - preventing pause...`);
+                                // Preemptively ensure video stays playing
+                                if (currentVideoEl.paused) {
+                                    currentVideoEl.play().catch(err => {
+                                        console.error(`[VIDEO ${currentIndex}] Play after waiting failed:`, err);
+                                    });
+                                }
+                            }, { capture: true });
                             
                             let lastTime = currentVideoEl.currentTime;
                             let lastLogTime = Date.now();
@@ -868,17 +905,17 @@ function playCurrentVideo() {
                             // Auto-stop after 20 seconds and clean up listeners
                             setTimeout(() => {
                                 clearInterval(pauseMonitor);
-                                currentVideoEl.removeEventListener('pause', preventPause, true);
-                                currentVideoEl.removeEventListener('suspend', preventPause, true);
-                                console.log(`[VIDEO ${currentIndex}] Monitoring auto-stopped, listeners removed`);
+                                currentVideoEl.removeEventListener('pause', preventPause, { capture: true });
+                                currentVideoEl.removeEventListener('suspend', preventPause, { capture: true });
+                                console.log(`[VIDEO ${currentIndex}] Monitoring auto-stopped, listeners removed. Total pauses intercepted: ${pauseInterceptCount}`);
                             }, 20000);
                             
                             // Also clean up if navigated away
                             const cleanupOnNavigate = () => {
                                 if (currentIndex !== originalIndex) {
                                     clearInterval(pauseMonitor);
-                                    currentVideoEl.removeEventListener('pause', preventPause, true);
-                                    currentVideoEl.removeEventListener('suspend', preventPause, true);
+                                    currentVideoEl.removeEventListener('pause', preventPause, { capture: true });
+                                    currentVideoEl.removeEventListener('suspend', preventPause, { capture: true });
                                 }
                             };
                             // Check every 2 seconds if we've navigated away
