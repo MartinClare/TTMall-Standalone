@@ -572,22 +572,37 @@ function playCurrentVideo() {
             if (playPromise !== undefined) {
                 playPromise
                     .then(() => {
-                        // For videos 8-9, monitor if they get paused or stuck and auto-resume
+                        // For videos 8-9, aggressive monitoring with detailed logging
                         if (currentIndex === 8 || currentIndex === 9) {
-                            console.log(`[VIDEO ${currentIndex}] ✅ Started playing, monitoring for pauses/stalls...`);
+                            console.log(`[VIDEO ${currentIndex}] ✅ Started playing, aggressive monitoring...`);
                             
                             let lastTime = currentVideoEl.currentTime;
-                            let stalledCount = 0;
+                            let lastLogTime = Date.now();
                             let checkCount = 0;
-                            const maxChecks = 30; // Monitor for 15 seconds (30 * 500ms)
                             const originalIndex = currentIndex;
                             
                             const pauseMonitor = setInterval(() => {
                                 checkCount++;
+                                const now = Date.now();
+                                
+                                // Log state every 2 seconds for debugging
+                                if (now - lastLogTime > 2000) {
+                                    console.log(`[VIDEO ${currentIndex}] Monitor check #${checkCount}:`, {
+                                        paused: currentVideoEl.paused,
+                                        ended: currentVideoEl.ended,
+                                        currentTime: currentVideoEl.currentTime.toFixed(2),
+                                        readyState: currentVideoEl.readyState,
+                                        networkState: currentVideoEl.networkState,
+                                        videoWidth: currentVideoEl.videoWidth,
+                                        videoHeight: currentVideoEl.videoHeight,
+                                        buffered: currentVideoEl.buffered.length > 0 ? `${currentVideoEl.buffered.start(0).toFixed(1)}-${currentVideoEl.buffered.end(0).toFixed(1)}` : 'none'
+                                    });
+                                    lastLogTime = now;
+                                }
                                 
                                 // Check if paused
                                 if (currentVideoEl.paused && !currentVideoEl.ended) {
-                                    console.log(`[VIDEO ${currentIndex}] ⚠️ Detected pause, resuming...`);
+                                    console.warn(`[VIDEO ${currentIndex}] ⚠️ PAUSED detected! Resuming...`);
                                     currentVideoEl.play()
                                         .then(() => {
                                             console.log(`[VIDEO ${currentIndex}] ✅ Resumed successfully`);
@@ -597,48 +612,52 @@ function playCurrentVideo() {
                                         });
                                 }
                                 
-                                // Check if video time is stuck (not advancing)
+                                // Check if video time is stuck
                                 const currentTime = currentVideoEl.currentTime;
-                                if (!currentVideoEl.paused && !currentVideoEl.ended) {
-                                    if (Math.abs(currentTime - lastTime) < 0.1 && currentTime > 0) {
-                                        // Time hasn't advanced by at least 0.1 seconds
-                                        stalledCount++;
-                                        if (stalledCount >= 2) { // 2 checks = 1 second of no progress
-                                            console.warn(`[VIDEO ${currentIndex}] ⚠️ Video time stuck at ${currentTime.toFixed(2)}s (stalled ${stalledCount}x)`);
-                                            
-                                            // Try to unstick by reloading current position
-                                            const savedTime = currentVideoEl.currentTime;
-                                            currentVideoEl.currentTime = savedTime; // Force seek
-                                            
-                                            // Force play again
+                                if (!currentVideoEl.paused && !currentVideoEl.ended && currentTime > 0) {
+                                    const timeDiff = Math.abs(currentTime - lastTime);
+                                    if (timeDiff < 0.05) { // Less than 50ms progress in 500ms = stuck
+                                        console.warn(`[VIDEO ${currentIndex}] ⚠️ TIME STUCK at ${currentTime.toFixed(2)}s (diff: ${timeDiff.toFixed(3)}s)`);
+                                        
+                                        // Aggressive unstick: pause, seek, play
+                                        currentVideoEl.pause();
+                                        const savedTime = currentTime;
+                                        setTimeout(() => {
+                                            console.log(`[VIDEO ${currentIndex}] Attempting unstick: seeking to ${savedTime.toFixed(2)}s and playing...`);
+                                            currentVideoEl.currentTime = savedTime;
+                                            currentVideoEl.muted = globalMuted;
                                             currentVideoEl.play()
                                                 .then(() => {
-                                                    console.log(`[VIDEO ${currentIndex}] ✅ Forced play to unstick`);
-                                                    stalledCount = 0;
+                                                    console.log(`[VIDEO ${currentIndex}] ✅ Unstick successful`);
                                                     lastTime = currentVideoEl.currentTime;
                                                 })
                                                 .catch(err => {
-                                                    console.error(`[VIDEO ${currentIndex}] ❌ Force play failed:`, err);
+                                                    console.error(`[VIDEO ${currentIndex}] ❌ Unstick failed:`, err);
                                                 });
-                                        }
+                                        }, 100);
                                     } else {
-                                        // Time is advancing, reset counter
-                                        stalledCount = 0;
                                         lastTime = currentTime;
                                     }
                                 }
                                 
                                 // Check for network/buffering issues
-                                if (currentVideoEl.networkState === 3) { // NETWORK_NO_SOURCE
-                                    console.warn(`[VIDEO ${currentIndex}] ⚠️ Network issue detected`);
+                                if (currentVideoEl.networkState === 3) {
+                                    console.warn(`[VIDEO ${currentIndex}] ⚠️ NETWORK ERROR (no source)`);
                                 }
                                 
-                                // Stop monitoring after max checks or if we've navigated away
-                                if (checkCount >= maxChecks || originalIndex !== currentIndex) {
+                                // Stop if navigated away
+                                if (originalIndex !== currentIndex) {
                                     clearInterval(pauseMonitor);
-                                    console.log(`[VIDEO ${currentIndex}] Monitoring complete`);
+                                    console.log(`[VIDEO ${originalIndex}] Monitoring stopped (navigated away)`);
+                                    return;
                                 }
                             }, 500);
+                            
+                            // Auto-stop after 20 seconds
+                            setTimeout(() => {
+                                clearInterval(pauseMonitor);
+                                console.log(`[VIDEO ${currentIndex}] Monitoring auto-stopped`);
+                            }, 20000);
                         }
                     })
                     .catch(e => {
