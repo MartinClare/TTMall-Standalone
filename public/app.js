@@ -5,6 +5,7 @@ let cart = [];
 let products = [];
 let trackedVideoViews = new Set(); // Track which videos we've already tracked in this session
 let globalMuted = true; // Global mute state - starts as muted for autoplay
+let memoryCheckInterval = null; // Memory check interval
 
 // Device ID - unique identifier for this device
 let deviceId = localStorage.getItem('deviceId');
@@ -31,6 +32,9 @@ async function init() {
         
         // Update sound button icon to reflect initial state
         updateSoundButtonIcon();
+        
+        // Start memory monitoring
+        startMemoryMonitoring();
         
         // Start playing first video
         playCurrentVideo();
@@ -409,6 +413,9 @@ function cleanupDistantVideos() {
     if (window.gc && typeof window.gc === 'function') {
         setTimeout(() => window.gc(), 100);
     }
+    
+    // Update memory label after cleanup
+    updateMemoryLabel();
 }
 
 function updateCurrentVideoIndex() {
@@ -509,6 +516,7 @@ function playCurrentVideo() {
     // Cleanup after a short delay to allow video to start playing
     setTimeout(() => {
         cleanupDistantVideos();
+        updateMemoryLabel(); // Update memory info after cleanup
     }, 200);
 }
 
@@ -853,6 +861,83 @@ function preventBounce() {
             videosContainer.scrollTop = maxScroll;
         }
     });
+}
+
+// Memory monitoring functions
+function getMemoryInfo() {
+    const info = {
+        jsHeapSize: 'N/A',
+        jsHeapSizeLimit: 'N/A',
+        totalJSHeapSize: 'N/A',
+        usedJSHeapSize: 'N/A',
+        videoCount: 0,
+        loadedVideos: 0
+    };
+    
+    // Check if performance.memory is available (Chrome/Edge)
+    if (performance.memory) {
+        const memory = performance.memory;
+        info.jsHeapSize = formatBytes(memory.jsHeapSizeLimit);
+        info.jsHeapSizeLimit = formatBytes(memory.jsHeapSizeLimit);
+        info.totalJSHeapSize = formatBytes(memory.totalJSHeapSize);
+        info.usedJSHeapSize = formatBytes(memory.usedJSHeapSize);
+    }
+    
+    // Count video elements
+    const allVideos = document.querySelectorAll('video');
+    info.videoCount = allVideos.length;
+    info.loadedVideos = Array.from(allVideos).filter(v => v.src && v.src !== '').length;
+    
+    return info;
+}
+
+function formatBytes(bytes) {
+    if (bytes === 'N/A') return 'N/A';
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+}
+
+function updateMemoryLabel() {
+    const label = document.getElementById('memoryLabel');
+    if (!label) return;
+    
+    const memInfo = getMemoryInfo();
+    
+    let text = `Videos: ${memInfo.videoCount} (${memInfo.loadedVideos} loaded)\n`;
+    
+    if (memInfo.usedJSHeapSize !== 'N/A') {
+        text += `Memory: ${memInfo.usedJSHeapSize} / ${memInfo.totalJSHeapSize}\n`;
+        text += `Limit: ${memInfo.jsHeapSizeLimit}`;
+    } else {
+        text += 'Memory: Not available\n';
+        text += '(Chrome/Edge only)';
+    }
+    
+    label.textContent = text;
+}
+
+function startMemoryMonitoring() {
+    // Update immediately
+    updateMemoryLabel();
+    
+    // Update every 2 seconds
+    if (memoryCheckInterval) {
+        clearInterval(memoryCheckInterval);
+    }
+    
+    memoryCheckInterval = setInterval(() => {
+        updateMemoryLabel();
+    }, 2000);
+}
+
+function stopMemoryMonitoring() {
+    if (memoryCheckInterval) {
+        clearInterval(memoryCheckInterval);
+        memoryCheckInterval = null;
+    }
 }
 
 // Start the app
