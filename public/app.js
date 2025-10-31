@@ -572,15 +572,20 @@ function playCurrentVideo() {
             if (playPromise !== undefined) {
                 playPromise
                     .then(() => {
-                        // For videos 8-9, monitor if they get paused and auto-resume
+                        // For videos 8-9, monitor if they get paused or stuck and auto-resume
                         if (currentIndex === 8 || currentIndex === 9) {
-                            console.log(`[VIDEO ${currentIndex}] ✅ Started playing, monitoring for pauses...`);
+                            console.log(`[VIDEO ${currentIndex}] ✅ Started playing, monitoring for pauses/stalls...`);
                             
+                            let lastTime = currentVideoEl.currentTime;
+                            let stalledCount = 0;
                             let checkCount = 0;
-                            const maxChecks = 20; // Monitor for 10 seconds (20 * 500ms)
+                            const maxChecks = 30; // Monitor for 15 seconds (30 * 500ms)
+                            const originalIndex = currentIndex;
+                            
                             const pauseMonitor = setInterval(() => {
                                 checkCount++;
                                 
+                                // Check if paused
                                 if (currentVideoEl.paused && !currentVideoEl.ended) {
                                     console.log(`[VIDEO ${currentIndex}] ⚠️ Detected pause, resuming...`);
                                     currentVideoEl.play()
@@ -592,20 +597,48 @@ function playCurrentVideo() {
                                         });
                                 }
                                 
-                                // Stop monitoring after max checks or if we've navigated away
-                                if (checkCount >= maxChecks || currentIndex !== (currentIndex)) {
-                                    clearInterval(pauseMonitor);
+                                // Check if video time is stuck (not advancing)
+                                const currentTime = currentVideoEl.currentTime;
+                                if (!currentVideoEl.paused && !currentVideoEl.ended) {
+                                    if (Math.abs(currentTime - lastTime) < 0.1 && currentTime > 0) {
+                                        // Time hasn't advanced by at least 0.1 seconds
+                                        stalledCount++;
+                                        if (stalledCount >= 2) { // 2 checks = 1 second of no progress
+                                            console.warn(`[VIDEO ${currentIndex}] ⚠️ Video time stuck at ${currentTime.toFixed(2)}s (stalled ${stalledCount}x)`);
+                                            
+                                            // Try to unstick by reloading current position
+                                            const savedTime = currentVideoEl.currentTime;
+                                            currentVideoEl.currentTime = savedTime; // Force seek
+                                            
+                                            // Force play again
+                                            currentVideoEl.play()
+                                                .then(() => {
+                                                    console.log(`[VIDEO ${currentIndex}] ✅ Forced play to unstick`);
+                                                    stalledCount = 0;
+                                                    lastTime = currentVideoEl.currentTime;
+                                                })
+                                                .catch(err => {
+                                                    console.error(`[VIDEO ${currentIndex}] ❌ Force play failed:`, err);
+                                                });
+                                        }
+                                    } else {
+                                        // Time is advancing, reset counter
+                                        stalledCount = 0;
+                                        lastTime = currentTime;
+                                    }
                                 }
-                            }, 500);
-                            
-                            // Also stop monitoring if user scrolls to different video
-                            const originalIndex = currentIndex;
-                            setTimeout(() => {
-                                if (originalIndex === currentIndex) {
+                                
+                                // Check for network/buffering issues
+                                if (currentVideoEl.networkState === 3) { // NETWORK_NO_SOURCE
+                                    console.warn(`[VIDEO ${currentIndex}] ⚠️ Network issue detected`);
+                                }
+                                
+                                // Stop monitoring after max checks or if we've navigated away
+                                if (checkCount >= maxChecks || originalIndex !== currentIndex) {
                                     clearInterval(pauseMonitor);
                                     console.log(`[VIDEO ${currentIndex}] Monitoring complete`);
                                 }
-                            }, 10000);
+                            }, 500);
                         }
                     })
                     .catch(e => {
