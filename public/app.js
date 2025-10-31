@@ -526,6 +526,11 @@ function playCurrentVideo() {
                 }, 300);
             } else {
                 console.log(`[VIDEO ${currentIndex}] ✅ All videos cleared, starting load`);
+                // Ensure the video element is ready for loading
+                if (!currentVideoEl.src && currentVideoEl.dataset.src) {
+                    console.log(`[VIDEO ${currentIndex}] Setting video source: ${currentVideoEl.dataset.src}`);
+                    currentVideoEl.src = currentVideoEl.dataset.src;
+                }
                 continueLoadingVideo();
             }
         }, waitTime);
@@ -535,16 +540,29 @@ function playCurrentVideo() {
     continueLoadingVideo();
     
     function continueLoadingVideo() {
-    // DON'T cleanup immediately - let current video load first
-    // Only cleanup very distant videos that won't interfere
-    
-    // Then handle current video FIRST (highest priority)
-    if (currentVideoEl && currentIndex >= 0 && currentIndex < videos.length) {
-        // Ensure current video is loaded
-        if (currentVideoEl.dataset.src && !currentVideoEl.src) {
-            currentVideoEl.src = currentVideoEl.dataset.src;
-            currentVideoEl.load();
+        // DON'T cleanup immediately - let current video load first
+        // Only cleanup very distant videos that won't interfere
+        
+        // For problematic videos, log that we're starting to load
+        if (isProblematicVideo) {
+            console.log(`[VIDEO ${currentIndex}] continueLoadingVideo() called`);
         }
+        
+        // Then handle current video FIRST (highest priority)
+        if (currentVideoEl && currentIndex >= 0 && currentIndex < videos.length) {
+            // Ensure current video is loaded
+            if (currentVideoEl.dataset.src && !currentVideoEl.src) {
+                console.log(`[VIDEO ${currentIndex}] Setting video src from dataset: ${currentVideoEl.dataset.src}`);
+                currentVideoEl.src = currentVideoEl.dataset.src;
+                currentVideoEl.load();
+            } else if (currentVideoEl.src) {
+                console.log(`[VIDEO ${currentIndex}] Video src already set: ${currentVideoEl.src}`);
+                // Force reload to ensure fresh state
+                if (isProblematicVideo) {
+                    console.log(`[VIDEO ${currentIndex}] Forcing reload...`);
+                    currentVideoEl.load();
+                }
+            }
         
         // Force current video to stay loaded
         const ensureVideoLoaded = () => {
@@ -573,18 +591,26 @@ function playCurrentVideo() {
             // Apply global mute state to video
             currentVideoEl.muted = globalMuted;
             
-            // For problematic videos, wait for better ready state
-            if (isProblematicVideo && currentVideoEl.readyState < 3) {
-            console.log(`[VIDEO ${currentIndex}] Not ready yet (readyState: ${currentVideoEl.readyState}), waiting for better state...`);
+            // For problematic videos, wait for readyState 4 (best state)
+            if (isProblematicVideo && currentVideoEl.readyState < 4) {
+                console.log(`[VIDEO ${currentIndex}] Not at readyState 4 yet (current: ${currentVideoEl.readyState}), waiting for HAVE_ENOUGH_DATA...`);
             
             // Wait for multiple events to ensure video is truly ready
             let canPlayFired = false;
             let loadedDataFired = false;
             
             const checkReady = () => {
-                if (canPlayFired && loadedDataFired && currentVideoEl.readyState >= 2) {
+                // For problematic videos, wait for readyState 4 (HAVE_ENOUGH_DATA)
+                const minReadyState = isProblematicVideo ? 4 : 2;
+                if (currentVideoEl.readyState >= minReadyState) {
                     console.log(`[VIDEO ${currentIndex}] ✅ Video ready (readyState: ${currentVideoEl.readyState}), attempting playback`);
                     tryPlay(attempt);
+                } else if (canPlayFired && loadedDataFired && currentVideoEl.readyState >= 2) {
+                    // Fallback: if both events fired and readyState >= 2, try anyway for non-problematic
+                    if (!isProblematicVideo) {
+                        console.log(`[VIDEO ${currentIndex}] ✅ Video ready (readyState: ${currentVideoEl.readyState}), attempting playback`);
+                        tryPlay(attempt);
+                    }
                 }
             };
             
@@ -604,8 +630,25 @@ function playCurrentVideo() {
                 console.log(`[VIDEO ${currentIndex}] canplaythrough event fired - best state!`);
                 canPlayFired = true;
                 loadedDataFired = true;
-                tryPlay(attempt);
+                // For problematic videos, verify readyState 4 before playing
+                if (isProblematicVideo && currentVideoEl.readyState >= 4) {
+                    console.log(`[VIDEO ${currentIndex}] ✅ readyState 4 confirmed, playing now`);
+                    tryPlay(attempt);
+                } else if (!isProblematicVideo) {
+                    tryPlay(attempt);
+                }
             }, { once: true });
+            
+            // Add loadedmetadata listener for early detection
+            if (isProblematicVideo) {
+                currentVideoEl.addEventListener('loadedmetadata', () => {
+                    console.log(`[VIDEO ${currentIndex}] loadedmetadata fired, readyState: ${currentVideoEl.readyState}`);
+                    if (currentVideoEl.readyState >= 4) {
+                        console.log(`[VIDEO ${currentIndex}] ✅ ReadyState 4 detected via loadedmetadata, playing immediately`);
+                        tryPlay(attempt);
+                    }
+                }, { once: true });
+            }
             
             currentVideoEl.addEventListener('error', (e) => {
                 console.error(`[VIDEO ${currentIndex}] ❌ Video error:`, e, currentVideoEl.error);
@@ -652,9 +695,54 @@ function playCurrentVideo() {
             }
         };
         
-        // If video is already loaded, play immediately
-        if (currentVideoEl.readyState >= 3) { // HAVE_FUTURE_DATA or better
-            console.log(`[VIDEO ${currentIndex}] Video already ready (readyState: ${currentVideoEl.readyState}), playing immediately`);
+        // For problematic videos with readyState 4, play IMMEDIATELY
+        if (isProblematicVideo) {
+            console.log(`[VIDEO ${currentIndex}] Current readyState: ${currentVideoEl.readyState}, networkState: ${currentVideoEl.networkState}`);
+            
+            // readyState 4 = HAVE_ENOUGH_DATA (best state!) - play immediately
+            if (currentVideoEl.readyState >= 4) {
+                console.log(`[VIDEO ${currentIndex}] ✅ readyState 4 (HAVE_ENOUGH_DATA) - playing IMMEDIATELY`);
+                // Force play immediately without waiting
+                currentVideoEl.muted = globalMuted;
+                const playPromise = currentVideoEl.play();
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            console.log(`[VIDEO ${currentIndex}] ✅ Successfully started playing (readyState 4)`);
+                        })
+                        .catch(e => {
+                            console.error(`[VIDEO ${currentIndex}] ❌ Play failed despite readyState 4:`, e);
+                            // Retry after a short delay
+                            setTimeout(() => {
+                                console.log(`[VIDEO ${currentIndex}] Retrying play...`);
+                                currentVideoEl.play().catch(err => {
+                                    console.error(`[VIDEO ${currentIndex}] ❌ Retry also failed:`, err);
+                                });
+                            }, 500);
+                        });
+                }
+                return; // Skip normal loading logic
+            } else if (currentVideoEl.readyState >= 3) {
+                console.log(`[VIDEO ${currentIndex}] Video ready (readyState: ${currentVideoEl.readyState}), playing immediately`);
+                tryPlay();
+            } else {
+                // For problematic videos, be more aggressive - try play even if not fully ready
+                console.log(`[VIDEO ${currentIndex}] Not fully ready (readyState: ${currentVideoEl.readyState}), attempting play after short delay...`);
+                setTimeout(() => {
+                    if (currentVideoEl.readyState >= 1) {
+                        console.log(`[VIDEO ${currentIndex}] ReadyState improved to ${currentVideoEl.readyState}, attempting play`);
+                        tryPlay();
+                    }
+                }, 300);
+            }
+        }
+        
+        // Standard loading logic for non-problematic videos
+        if (currentVideoEl.readyState >= 4) { // HAVE_ENOUGH_DATA (best)
+            console.log(`[VIDEO ${currentIndex}] Video fully ready (readyState: 4), playing immediately`);
+            tryPlay();
+        } else if (currentVideoEl.readyState >= 3) { // HAVE_FUTURE_DATA
+            console.log(`[VIDEO ${currentIndex}] Video ready (readyState: 3), playing immediately`);
             tryPlay();
         } else {
             // Wait for video to load - use multiple event listeners
