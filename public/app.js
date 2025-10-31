@@ -6,6 +6,7 @@ let products = [];
 let trackedVideoViews = new Set(); // Track which videos we've already tracked in this session
 let globalMuted = true; // Global mute state - starts as muted for autoplay
 let memoryCheckInterval = null; // Memory check interval
+let lastSyncTime = null; // Last GitHub sync/deployment time
 
 // Device ID - unique identifier for this device
 let deviceId = localStorage.getItem('deviceId');
@@ -35,6 +36,9 @@ async function init() {
         
         // Start memory monitoring
         startMemoryMonitoring();
+        
+        // Fetch last sync time
+        fetchLastSyncTime();
         
         // Start playing first video
         playCurrentVideo();
@@ -900,20 +904,70 @@ function formatBytes(bytes) {
     return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
 }
 
+async function fetchLastSyncTime() {
+    try {
+        // Try to fetch last sync time from server
+        const response = await fetch('/api/deployment-info');
+        if (response.ok) {
+            const data = await response.json();
+            lastSyncTime = data.lastSyncTime || data.buildTime || null;
+        }
+    } catch (error) {
+        // Fallback: use app.js file modification time or current time
+        console.log('Could not fetch sync time:', error);
+    }
+    
+    // Update memory label with sync time
+    updateMemoryLabel();
+}
+
 function updateMemoryLabel() {
     const label = document.getElementById('memoryLabel');
     if (!label) return;
     
     const memInfo = getMemoryInfo();
     
+    // Get current timestamp for memory check
+    const now = new Date();
+    const currentTime = now.toLocaleTimeString('en-US', { 
+        hour12: false, 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+    });
+    
     let text = `Videos: ${memInfo.videoCount} (${memInfo.loadedVideos} loaded)\n`;
     
     if (memInfo.usedJSHeapSize !== 'N/A') {
         text += `Memory: ${memInfo.usedJSHeapSize} / ${memInfo.totalJSHeapSize}\n`;
-        text += `Limit: ${memInfo.jsHeapSizeLimit}`;
+        text += `Limit: ${memInfo.jsHeapSizeLimit}\n`;
     } else {
         text += 'Memory: Not available\n';
-        text += '(Chrome/Edge only)';
+        text += '(Chrome/Edge only)\n';
+    }
+    
+    // Show last GitHub sync time or current check time in Hong Kong timezone
+    if (lastSyncTime) {
+        const syncDate = new Date(lastSyncTime);
+        const syncTimeStr = syncDate.toLocaleString('en-US', {
+            timeZone: 'Asia/Hong_Kong',
+            month: 'short',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+        text += `GitHub Sync: ${syncTimeStr} HKT`;
+    } else {
+        const hkTime = now.toLocaleTimeString('en-US', {
+            timeZone: 'Asia/Hong_Kong',
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        text += `Checked: ${hkTime} HKT`;
     }
     
     label.textContent = text;

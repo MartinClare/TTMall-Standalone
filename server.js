@@ -207,6 +207,37 @@ app.get('/api/videos', (req, res) => {
   res.json(videos);
 });
 
+// Get deployment/sync information
+app.get('/api/deployment-info', (req, res) => {
+  // Get package.json modification time as proxy for last deployment
+  const packageJsonPath = join(__dirname, 'package.json');
+  let lastSyncTime = null;
+  
+  try {
+    if (fs.existsSync(packageJsonPath)) {
+      const stats = fs.statSync(packageJsonPath);
+      lastSyncTime = stats.mtime.toISOString();
+    } else {
+      // Fallback to server.js or current time
+      const serverPath = join(__dirname, 'server.js');
+      if (fs.existsSync(serverPath)) {
+        const stats = fs.statSync(serverPath);
+        lastSyncTime = stats.mtime.toISOString();
+      } else {
+        lastSyncTime = new Date().toISOString();
+      }
+    }
+  } catch (error) {
+    console.error('Error getting deployment info:', error);
+    lastSyncTime = new Date().toISOString();
+  }
+  
+  res.json({
+    lastSyncTime: lastSyncTime,
+    buildTime: lastSyncTime
+  });
+});
+
 // Upload video endpoint (file upload)
 app.post('/api/videos/upload', upload.single('video'), (req, res) => {
   try {
